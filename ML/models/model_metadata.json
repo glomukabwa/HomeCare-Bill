@@ -1,0 +1,54 @@
+{
+    "model_name": "Model 2B - Type-Specific Isolation Forests",
+    "algorithm": "Isolation Forest",
+    "threshold": -0.26,
+    "features": [
+        "amount",
+        "oldbalanceOrg",
+        "newbalanceOrig",
+        "orig_balance_change",
+        "orig_balance_discrepancy",
+        "amount_zscore_abs"
+    ],
+    "transaction_types": [
+        "CASH_IN",
+        "CASH_OUT",
+        "DEBIT",
+        "PAYMENT",
+        "TRANSFER"
+    ],
+    "type_amount_statistics": {
+        "CASH_IN": {
+            "mean": 168764.15460343848,
+            "std": 126598.7520730014
+        },
+        "CASH_OUT": {
+            "mean": 176473.49823105746,
+            "std": 156147.10668086464
+        },
+        "DEBIT": {
+            "mean": 5592.754116435619,
+            "std": 12626.19601060428
+        },
+        "PAYMENT": {
+            "mean": 12854.768219393307,
+            "std": 12390.728639387406
+        },
+        "TRANSFER": {
+            "mean": 930792.0385174453,
+            "std": 2023719.4222933338
+        }
+    },
+    "training_period": {
+        "start_step": 1,
+        "end_step": 355
+    },
+    "validation_period": {
+        "start_step": 356,
+        "end_step": 549
+    },
+    "final_evaluation_period": {
+        "start_step": 550,
+        "end_step": 743
+    }
+}
