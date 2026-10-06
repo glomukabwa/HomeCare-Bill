@@ -12,3 +12,6 @@ backend/venv/
 # Python
 __pycache__/
 *.pyc
+
+# Firebase Android configuration
+app/google-services.json
