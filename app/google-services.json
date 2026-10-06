@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "412271284264",
+    "project_id": "homecare-bill",
+    "storage_bucket": "homecare-bill.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:412271284264:android:119eed511accb62db4a51d",
+        "android_client_info": {
+          "package_name": "com.example.homecare_bill"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5YLMgiIpSkXKLvl-VaExMDWwowOr_yhk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
