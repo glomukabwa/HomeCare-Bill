@@ -1,9 +1,11 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 # When we installed fastapi (pip install fastapi uvicorn), 
 # pip installed FastAPI and its required dependencies. Pydantic is one of FastAPI's important dependencies. 
 # BaseModel is a class provided by Pydantic. We are going to inherit it below and use its functionality
 # Remember inheritance in python looks like this: class Dog(Animal):
+# Field() lets us specify rules for a Pydantic field. See how it has been used below
+from typing import Literal
 
 from model_loader import models, metadata
 from feature_engineering import prepare_features
@@ -17,13 +19,26 @@ class Transaction(BaseModel):
     # It checks that the Transaction data is all following the respective datatypes meaning if a number is expected you can't enter a string
     # and by conversion I mean converting it to the right data type. Eg if you enter amount = 5000 it'll change it to 5000.0, a float
     # Basically it saves us the time and effort of having to manually code all this
-    transaction_type: str
-    amount: float
-    old_balance: float
-    new_balance: float
+    transaction_type: Literal[ #Literal means: This value must literally be one of these exact values.
+        "CASH_IN",
+        "CASH_OUT",
+        "DEBIT",
+        "PAYMENT",
+        "TRANSFER"
+    ]
+    amount: float = Field(gt=0) #This means greater than 0. So that we can prevent negatives  and zero amounts
+    old_balance: float = Field(ge=0) #This means greater or equal to 0.
+    new_balance: float = Field(ge=0)
 
     #Here we're essentially telling FastAPI: If somebody sends me a transaction, I expect these four pieces of information.
 
+
+class AnomalyResponse(BaseModel):
+    transaction_type: str
+    anomaly_score:float
+    threshold: float
+    is_anomaly: bool
+    status:str
 
 
 @app.get("/")
@@ -40,7 +55,10 @@ def home():
 # Basically we've created a simple endpoint just to ask: "Hey backend, are you alive?"
 
 
-@app.post("/analyze-transaction")
+@app.post(
+        "/analyze-transaction",
+        response_model=AnomalyResponse
+    )
 def analyze_transaction(transaction: Transaction):
 
     # Preparing the six features expected by the model
@@ -74,10 +92,12 @@ def analyze_transaction(transaction: Transaction):
     # Deciding whether the transaction should be flagged
     is_anomaly = anomaly_score < threshold
     # Rememeber, with Isolation Forest's decision_function, lower values mean more abnormal.
+    status = "FLAGGED_FOR_REVIEW" if is_anomaly else "NORMAL"
 
     return{
         "transaction_type:": transaction.transaction_type,
         "anomaly_score": anomaly_score,
         "threshold": threshold,
-        "is_anomaly": bool(is_anomaly)
+        "is_anomaly": bool(is_anomaly),
+        "status": status
     }
