@@ -2,6 +2,7 @@ package com.example.homecare_bill
 
 import android.R
 import android.content.res.Configuration
+import android.util.Log
 import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -12,11 +13,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -85,6 +88,8 @@ fun RegisterScreen(modifier: Modifier = Modifier){
     //"by remember" VS "= remember"
     //val state = remember { ... } returns the actual MutableState wrapper object. To read or write the actual value inside it, you must explicitly use .value.
     //var state by remember { ... } uses delegation to automatically unwrap the object. It allows you to read and write to the variable directly, as if it were a normal primitive variable.
+
+    var isLoading by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier//Notice that this is in lowercase because we're now using the parameter passed into the RegisterScreen() function above. I'm gonna pass the padding values that will be calculated by Scaffold in MainActivity.kt
@@ -293,6 +298,8 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                 }
 
                 if (errorMessage.isEmpty()) {//Sth to note is that isBlank() is better than isEmpty() cz isBlank() considers whitespaces as emptiness while isEmpty() doesn't
+                    isLoading = true
+
                     auth.createUserWithEmailAndPassword(
                         email.trim(),
                         password
@@ -313,7 +320,9 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                                 val userProfile = hashMapOf(
                                     "firstName" to firstName.trim(),
                                     "lastName" to lastName.trim(),
-                                    "email" to email.trim(),
+                                    "email" to (user.email ?: email.trim()),//This ensures that the email entered into Authentification is the one
+                                    //recorded into Firestore. I'd gotten an error before when I tried Registering the 1st time that's why I put this here.
+                                    //I'm not sure if it helped solve the error or not but I'm leaving it here.
                                     "role" to selectedRole
                                 )
 
@@ -321,6 +330,9 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                                     .document(user.uid)//identifies the document using the authenticated user's UID.
                                     .set(userProfile)//writes the profile fields into that document.
                                     .addOnSuccessListener {
+
+                                        isLoading = false
+
                                         Toast.makeText(
                                             context,
                                             "Account created successfully!",
@@ -330,12 +342,21 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                                         ).show()
                                     }
                                     .addOnFailureListener { exception ->
+
+                                        isLoading = false //Cz if there's an error, loading needs to stop so that the error message is displayed
+
                                         errorMessage = "Account created, but profile could not be saved: " +
                                                 (exception.localizedMessage ?: "Unknown error")
                                     }
+                            }else{
+                                isLoading = false //Cz if there's an error, loading needs to stop so that the error message is displayed
+                                errorMessage = "Unable to retrieve the new account. Please try again."
                             }
 
                         }else{
+
+                            isLoading = false //Cz if there's an error, loading needs to stop so that the error message is displayed
+
                             errorMessage = task.exception?.localizedMessage
                                 ?: "Registration failed. Please try again."
                             //?. — Safely access a property when the object might be null.
@@ -353,9 +374,19 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                     }
                 }
             },
+            enabled = !isLoading,//enabes determines whether the button can be clicked. If value of !isLoading is false, then the btn will be disabled and vice versa. It initial value is therefore tru cz isLoading is false. It'll become false when isLoading becomes true
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Register")
+
+            if(isLoading){
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp), //determines the overall size of the loading indicator
+                    strokeWidth = 2.dp,//determines how thick the circular line of the loading indicator is
+                    color = MaterialTheme.colorScheme.onPrimary //onPrimary represents the color used for content displayed on top of a primary-colored background
+                )
+            }else{
+                Text("Register")
+            }
         }
 
         TextButton(
