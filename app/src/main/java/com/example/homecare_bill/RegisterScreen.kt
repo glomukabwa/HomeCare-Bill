@@ -5,6 +5,7 @@ import android.content.res.Configuration
 import android.util.Log
 import android.util.Patterns
 import android.widget.Toast
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,10 +19,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -90,6 +93,7 @@ fun RegisterScreen(modifier: Modifier = Modifier){
     //var state by remember { ... } uses delegation to automatically unwrap the object. It allows you to read and write to the variable directly, as if it were a normal primitive variable.
 
     var isLoading by remember { mutableStateOf(false) }
+    var profileSaveFailed by remember { mutableStateOf(false) }// Meaning: false ->No profile-saving failure has been recorded, true -> Authentication succeeded, but saving the Firestore profile failed
 
     Column(
         modifier = modifier//Notice that this is in lowercase because we're now using the parameter passed into the RegisterScreen() function above. I'm gonna pass the padding values that will be calculated by Scaffold in MainActivity.kt
@@ -300,6 +304,8 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                 if (errorMessage.isEmpty()) {//Sth to note is that isBlank() is better than isEmpty() cz isBlank() considers whitespaces as emptiness while isEmpty() doesn't
                     isLoading = true
 
+                    profileSaveFailed = false
+
                     auth.createUserWithEmailAndPassword(
                         email.trim(),
                         password
@@ -332,6 +338,7 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                                     .addOnSuccessListener {
 
                                         isLoading = false
+                                        profileSaveFailed = false
 
                                         Toast.makeText(
                                             context,
@@ -344,9 +351,11 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                                     .addOnFailureListener { exception ->
 
                                         isLoading = false //Cz if there's an error, loading needs to stop so that the error message is displayed
+                                        profileSaveFailed = true
 
-                                        errorMessage = "Account created, but profile could not be saved: " +
-                                                (exception.localizedMessage ?: "Unknown error")
+                                        errorMessage = "Your account was created, but we couldn't save your profile." +
+                                                "Please retry saving your profile. " +
+                                                (exception.localizedMessage ?: "")
                                     }
                             }else{
                                 isLoading = false //Cz if there's an error, loading needs to stop so that the error message is displayed
@@ -398,6 +407,99 @@ fun RegisterScreen(modifier: Modifier = Modifier){
             Text("Already have an account? Login")
         }
     }
+
+    if(profileSaveFailed){
+        AlertDialog(
+
+            title = {
+                Text("Profile Not Saved")
+            },
+
+            text = {
+                Text(
+                    "Your account was created successfully, but we couldn't save your profile. Please try again."
+                )
+            },
+
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val user = auth.currentUser //Cz the currentUser is the most recent user -> The user whose details have just been authenticated but whose profile has not been added
+
+                        if(user != null) {
+                            isLoading = true
+                            errorMessage = ""
+
+                            val userProfile = hashMapOf(
+                                "firstName" to firstName.trim(),
+                                "lastName" to lastName.trim(),
+                                "email" to (user.email ?: email.trim()),
+                                "role" to selectedRole
+                            )
+
+                            db.collection("users")
+                                .document(user.uid)//The ID that was created bu Authentification
+                                .set(userProfile)
+                                .addOnSuccessListener {
+                                    isLoading = false
+                                    profileSaveFailed = false
+
+                                    Toast.makeText(
+                                        context,
+                                        "Registration completed successfully!",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                .addOnFailureListener { exception ->
+                                    isLoading = false
+                                    errorMessage =
+                                        "Profile save failed: " +
+                                                (exception.localizedMessage ?: "Please try again.")
+                                }
+                        }else{
+                            profileSaveFailed = false
+                            errorMessage =
+                                "Your session has expired. Please sign in again."
+                        }
+                    },
+                    enabled = !isLoading
+                ) {
+                    if(isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }else{
+                        Text("Retry")
+                    }
+                }
+            },
+
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        profileSaveFailed = false
+                    },
+                    enabled = !isLoading
+                ) {
+                    Text("Close")
+                }
+            },
+
+            onDismissRequest = {//This determines what happens if the user tries to dismiss the popup, for example by tapping outside it or pressing the Android Back button.
+                if(!isLoading) {//This means only allow the popup to close if Firebase is NOT currently processing a request ie it is not retying the registration.
+                    // In the code above in the Firestore failure section, we've set isLoading to false and profileSaveFailed to true. The profileSaveFailed is
+                    // what triggers the alert dialog. When someone clicks the retry registration button, the isLoading is set to true and then to false if the
+                    // retry has either succeeded or failed. However, there's a chance that the user may try to dismiss the alert while the app is retying registration
+                    // so this section is here to ensure that isLoading is false (meaning there's no process going on), before profileSaveFailed is set to false making
+                    // the dialog box disappear.
+                    profileSaveFailed = false
+                }
+            }
+
+        )
+    }
+
 }
 
 
