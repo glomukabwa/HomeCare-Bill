@@ -45,7 +45,14 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun LoginScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onRegisterClick : () -> Unit
+        // onRegisterClick	The name of the parameter
+        // ()	            The function takes no arguments
+        // ->	            Separates the function's parameters from its return type
+        // Unit	            The function doesn't return a meaningful value
+        // In simple terms, we're telling LoginScreen: "You will receive a function that should be executed whenever someone clicks Register." This is called a callback function.
+        // I'm putting it as a parameter here cz I don't want LoginScreen to handle navigation. I want all the navigation to be done in MainActivity so I'll specify the navigation there
 ){
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -241,9 +248,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         TextButton(
-            onClick = {
-                //Connnection to register screen
-            },
+            onClick = onRegisterClick,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Don't have an account? Register")
@@ -254,5 +259,5 @@ fun LoginScreen(
 @Preview(showBackground = true)
 @Composable
 fun previewLoginScreen(){
-    LoginScreen()
+    //LoginScreen()
 }

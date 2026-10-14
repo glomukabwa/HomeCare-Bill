@@ -51,7 +51,10 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.core.ComponentProvider
 
 @Composable
-fun RegisterScreen(modifier: Modifier = Modifier){
+fun RegisterScreen(
+    modifier: Modifier = Modifier,
+    onLoginClick: () -> Unit
+){
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -399,9 +402,7 @@ fun RegisterScreen(modifier: Modifier = Modifier){
         }
 
         TextButton(
-            onClick = {
-                // Login functionality
-            },
+            onClick = onLoginClick,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Already have an account? Login")
@@ -535,5 +536,5 @@ fun PasswordRequirement(
 @Preview(showBackground = true)
 @Composable
 fun RegisterScreenPreview(){
-    RegisterScreen()
+    //RegisterScreen()
 }
