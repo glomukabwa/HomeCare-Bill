@@ -239,9 +239,9 @@ fun RegisterScreen(modifier: Modifier = Modifier){
                         //So basically we use it here to say that the selectable Row is a RadioButton. Other uses: Role.Checkbox, Role.Switch
                     ),
                 verticalAlignment = Alignment.CenterVertically
-                /*Alignment.CenterVertically is a 1D alignment used inside a Row, whereas Alignment.Center is a 2D alignment used inside a Box. They cannot be used interchangeably because their parent containers expect different types of alignment.
+                /*Alignment.CenterVertically vs Alignment.Center :
                 *       Alignment.CenterVertically -> 1D (Vertical axis only)	        -> Row	-> Aligns items to the middle of the Row's height.
-                *       Alignment.Center	       -> 2D (Both Horizontal & Vertical)	-> Box	-> Centers items perfectly in the exact middle of the Box (both width and height).*/
+                *       Alignment.Center	       -> 2D (Both Horizontal & Vertical)	-> Box, Column, Row	-> Centers items perfectly in the exact middle of the Box (both width and height).*/
             ) {
                 RadioButton(
                     selected = selectedRole == roleValue,
