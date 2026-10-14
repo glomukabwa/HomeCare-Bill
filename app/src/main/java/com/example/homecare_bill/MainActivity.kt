@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
                     //inheriting the modifier. That's bcz innerPadding is for outside the major containers. I still need to state
                     //the spacing inside the containers I create.
                     //Also, innerPadding is not the rigid name. I could call it containerPadding and it would still work
-                    RegisterScreen(modifier = Modifier.padding(innerPadding))
+                    LoginScreen(modifier = Modifier.padding(innerPadding))
                 }
             }
         }

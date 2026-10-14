@@ -1,7 +1,9 @@
 package com.example.homecare_bill
 
 import android.R
+import android.util.Patterns
 import android.widget.Space
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,12 +33,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun LoginScreen(
@@ -47,6 +52,11 @@ fun LoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+
+    //We don't use "by" for the 2 below cz we don't use mutableStateOf(). Instead we are accessing Auth, Firestore and LocalContext objects so we use "="
+    var auth = remember { FirebaseAuth.getInstance() }
+    var db = remember { FirebaseFirestore.getInstance() }
+    var context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -140,7 +150,79 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                //Firebase implementation
+                errorMessage = when {
+                    email.isBlank() ->
+                        "Please enter your email address"
+
+                    !Patterns.EMAIL_ADDRESS
+                        .matcher(email.trim()).matches() ->
+                            "Please enter a valid email address"
+
+                    password.isBlank() ->
+                        "Please enter your password"
+
+                    else -> ""
+                }
+
+                if (errorMessage.isEmpty()){
+                    isLoading = true
+
+                    auth.signInWithEmailAndPassword(//This sends the email and password to Firebase Authentication for verification.
+                        email.trim(),
+                        password
+                    ).addOnCompleteListener { task -> //This listener executes when an asynchronous task finishes, regardless of whether it succeeds or fails.
+                        if (task.isSuccessful) { //Notice that since addOnCompleteListener doesn't check if sth is successful, wu use task.isSuccessful. Instead of writing the two blocks we can just use one addOnSuccessful but I've used this to add ur info about listeners
+                            val user = auth.currentUser //auth.CurrentUser contains the uid, email, isEmailVerified(Whether their email address has been verified)
+
+                            if(user != null){//Remember we check this cz user(a reference to auth.currentUser) is a nullable object
+                                db.collection("users")
+                                    .document(user.uid)
+                                    .get()//Retrieves the user's Firestore profile
+                                    .addOnSuccessListener { document ->
+                                        isLoading = false
+
+                                        //Above, addOnSuccessListener checks whether Firestore was able to process our request and return a result.
+                                        // However, this doesn't necessarily mean the requested document exists. Above we are asking, "Please look for a document in the users collection with this particular UID and tell me what you find."
+                                        // Firestore can successfully answer that request in two ways:
+                                        //      - "Yes, I found the document. Here is its data."
+                                        //      - "I successfully checked, but no document exists with that ID." So basically if the user profile doesn't exist it returns an empty string
+                                        // That is why below we use document.exists() to check if the profile actually exists
+
+                                        if(document.exists()){//This checks whether Firestore actually returned an existing user profile document.
+                                            val role = document.getString("role")
+
+                                            if(role == "CLIENT" || role == "CAREGIVER"){
+                                                Toast.makeText(
+                                                    context,//This provides access to the Android environment needed for the Toast operation.
+                                                    "Login successful!",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+
+                                                //Navigation based on role will come later
+                                            } else{
+                                                errorMessage = "Your account has an invalid role. Please contact support."
+                                            }
+                                        } else {
+                                            errorMessage =  "Your account exists, but your profile is missing. Please complete your registration."
+                                        }
+                                    }
+                                    .addOnFailureListener { exception ->
+                                        isLoading = false
+
+                                        errorMessage = "Unable to retrieve your profile: " +
+                                                (exception.localizedMessage ?: "Please try again.")
+                                    }
+                            }else {
+                                isLoading = false
+
+                                errorMessage = "Unable to retrieve your account. Please try again."
+                            }
+                        }else{
+                            isLoading = false
+                            errorMessage = "Unable to sign in. Please check your email and password."
+                        }
+                    }
+                }
             },
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth()
