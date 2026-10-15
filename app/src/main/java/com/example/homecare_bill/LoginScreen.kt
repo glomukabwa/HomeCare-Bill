@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -33,6 +34,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -64,6 +67,11 @@ fun LoginScreen(
     var auth = remember { FirebaseAuth.getInstance() }
     var db = remember { FirebaseFirestore.getInstance() }
     var context = LocalContext.current
+
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var resetEmail by remember { mutableStateOf("") } //Stores the email entered for password reset
+    var resetError by remember { mutableStateOf("") } //Stores validation or Firebase error messages
+    var isResetLoading by remember { mutableStateOf(false) } //Tracks whether Firebase is processing the request
 
     Column(
         modifier = Modifier
@@ -140,7 +148,9 @@ fun LoginScreen(
 
         TextButton(
             onClick = {
-                //Implementation
+                resetEmail = email.trim()
+                resetError = ""
+                showForgotPasswordDialog = true
             }
         ) {
             Text("Forgot Password?")
@@ -254,6 +264,114 @@ fun LoginScreen(
             Text("Don't have an account? Register")
         }
     }
+
+    if(showForgotPasswordDialog){
+        AlertDialog(
+            onDismissRequest = {
+                if(!isResetLoading){
+                    showForgotPasswordDialog = false
+                }
+            },
+
+            title = {
+                Text("Reset Password")
+            },
+
+            text = {
+                Column {
+                    Text("Enter your email address and we will send you a password reset link.")
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = {
+                            resetEmail = it
+                            resetError = ""
+                        },
+                        label = {
+                            Text("Email Address")
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if(resetError.isNotEmpty()){
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            resetError,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+
+            confirmButton = {
+                TextButton(
+                    enabled = !isResetLoading,
+                    onClick = {
+                        val emailToReset = resetEmail.trim()
+
+                        resetError = when {
+                            emailToReset.isBlank() ->
+                                "Please enter your email address"
+
+                            !Patterns.EMAIL_ADDRESS.matcher(emailToReset).matches() ->
+                                "Please enter a valid email address"
+
+                            else -> ""
+                        }
+
+                        if(resetError.isEmpty()){
+                            isResetLoading = true
+
+                            auth.sendPasswordResetEmail(emailToReset)
+                                .addOnSuccessListener {
+                                    isResetLoading = false
+                                    showForgotPasswordDialog = false
+
+                                    Toast.makeText(
+                                        context,
+                                        "If an account is eligible, a password reset email will be sent.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                .addOnFailureListener {
+                                    isResetLoading = false
+
+                                    resetError = "Unable to process the request. Please try again."
+                                }
+                        }
+                    }
+                ) {
+                    if (isResetLoading){
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }else{
+                        Text("Send link")
+                    }
+                }
+            },
+
+            dismissButton = {
+                TextButton(
+                    enabled = !isLoading,
+                    onClick = {
+                        showForgotPasswordDialog = false
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 }
 
 @Preview(showBackground = true)
