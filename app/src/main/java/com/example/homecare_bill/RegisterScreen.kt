@@ -340,16 +340,31 @@ fun RegisterScreen(
                                     .set(userProfile)//writes the profile fields into that document.
                                     .addOnSuccessListener {
 
-                                        isLoading = false
-                                        profileSaveFailed = false
+                                        user.sendEmailVerification()// Firebase will handle sending the verification link and checking if it's clicked. We just have to check whether it is or is not successful
+                                            .addOnSuccessListener {// Sth you should know is that this just checks if Firebase was able to send the email. It doesn't check
+                                                //if the user has clicked the verification link so in Login, we're gonna check if the user is verified b4 giving them access
+                                                isLoading = false
+                                                profileSaveFailed = false
 
-                                        Toast.makeText(
-                                            context,
-                                            "Account created successfully!",
-                                            Toast.LENGTH_LONG
-                                            //Toast.LENGTH_LONG lasts for exactly 3.5 seconds.
-                                            //Toast.LENGTH_SHORT lasts for exactly 2 seconds.
-                                        ).show()
+                                                Toast.makeText(
+                                                    context,
+                                                    "Account created successfully!",
+                                                    Toast.LENGTH_LONG
+                                                    //Toast.LENGTH_LONG lasts for exactly 3.5 seconds.
+                                                    //Toast.LENGTH_SHORT lasts for exactly 2 seconds.
+                                                ).show()
+                                            }
+                                            .addOnFailureListener { exception ->
+                                                isLoading = false
+
+                                                Toast.makeText(
+                                                    context,
+                                                    "Account created, but verification email could not be sent: " +
+                                                            (exception.localizedMessage ?: "Please try again later"),
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+
                                     }
                                     .addOnFailureListener { exception ->
 

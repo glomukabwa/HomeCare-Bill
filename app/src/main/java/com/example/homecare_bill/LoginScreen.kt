@@ -2,7 +2,6 @@ package com.example.homecare_bill
 
 import android.R
 import android.util.Patterns
-import android.widget.Space
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -34,8 +32,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -72,6 +68,8 @@ fun LoginScreen(
     var resetEmail by remember { mutableStateOf("") } //Stores the email entered for password reset
     var resetError by remember { mutableStateOf("") } //Stores validation or Firebase error messages
     var isResetLoading by remember { mutableStateOf(false) } //Tracks whether Firebase is processing the request
+
+    var showVerificationDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -192,42 +190,57 @@ fun LoginScreen(
                             val user = auth.currentUser //auth.CurrentUser contains the uid, email, isEmailVerified(Whether their email address has been verified)
 
                             if(user != null){//Remember we check this cz user(a reference to auth.currentUser) is a nullable object
-                                db.collection("users")
-                                    .document(user.uid)
-                                    .get()//Retrieves the user's Firestore profile
-                                    .addOnSuccessListener { document ->
-                                        isLoading = false
 
-                                        //Above, addOnSuccessListener checks whether Firestore was able to process our request and return a result.
-                                        // However, this doesn't necessarily mean the requested document exists. Above we are asking, "Please look for a document in the users collection with this particular UID and tell me what you find."
-                                        // Firestore can successfully answer that request in two ways:
-                                        //      - "Yes, I found the document. Here is its data."
-                                        //      - "I successfully checked, but no document exists with that ID." So basically if the user profile doesn't exist it returns an empty string
-                                        // That is why below we use document.exists() to check if the profile actually exists
+                                user.reload() //This asks Firebase Authentication to refresh the user's account information. Cz if the user opens the app, registers and verifies, the info will still be old.
+                                    // The app won't automatically know that they have clicked the verification btn cz it happens outside the app. reload() now makes the app aware. Notice that it comes b4 Firestore functionalities
+                                    // Notice that the reload happens before profile retrieval. That's cz we want to confirm the user's email that has been verified b4 continuing with the login process. It comes after Authentification cz we use auth to get user info
+                                    .addOnSuccessListener {
+                                        if (user.isEmailVerified) {
+                                            db.collection("users")
+                                                .document(user.uid)
+                                                .get()//Retrieves the user's Firestore profile
+                                                .addOnSuccessListener { document ->
+                                                    isLoading = false
 
-                                        if(document.exists()){//This checks whether Firestore actually returned an existing user profile document.
-                                            val role = document.getString("role")
+                                                    //Above, addOnSuccessListener checks whether Firestore was able to process our request and return a result.
+                                                    // However, this doesn't necessarily mean the requested document exists. Above we are asking, "Please look for a document in the users collection with this particular UID and tell me what you find."
+                                                    // Firestore can successfully answer that request in two ways:
+                                                    //      - "Yes, I found the document. Here is its data."
+                                                    //      - "I successfully checked, but no document exists with that ID." So basically if the user profile doesn't exist it returns an empty string
+                                                    // That is why below we use document.exists() to check if the profile actually exists
 
-                                            if(role == "CLIENT" || role == "CAREGIVER"){
-                                                Toast.makeText(
-                                                    context,//This provides access to the Android environment needed for the Toast operation.
-                                                    "Login successful!",
-                                                    Toast.LENGTH_LONG
-                                                ).show()
+                                                    if(document.exists()){//This checks whether Firestore actually returned an existing user profile document.
+                                                        val role = document.getString("role")
 
-                                                //Navigation based on role will come later
-                                            } else{
-                                                errorMessage = "Your account has an invalid role. Please contact support."
-                                            }
+                                                        if(role == "CLIENT" || role == "CAREGIVER"){
+                                                            Toast.makeText(
+                                                                context,//This provides access to the Android environment needed for the Toast operation.
+                                                                "Login successful!",
+                                                                Toast.LENGTH_LONG
+                                                            ).show()
+
+                                                            //Navigation based on role will come later
+                                                        } else{
+                                                            errorMessage = "Your account has an invalid role. Please contact support."
+                                                        }
+                                                    } else {
+                                                        errorMessage =  "Your account exists, but your profile is missing. Please complete your registration."
+                                                    }
+                                                }
+                                                .addOnFailureListener { exception ->
+                                                    isLoading = false
+
+                                                    errorMessage = "Unable to retrieve your profile: " +
+                                                            (exception.localizedMessage ?: "Please try again.")
+                                                }
                                         } else {
-                                            errorMessage =  "Your account exists, but your profile is missing. Please complete your registration."
+                                            isLoading = false
+                                            auth.signOut()//Why do we need to do this despite the fact that it looks like the user hasn't logged in? One thing you need to know is that as soon as Firebase authenticates a user, it considers
+                                            //them as signed in despite the fact that we don't. So without this, later on in another page if you us if(auth.currentUser) for sessions, the unverified user will still have access cz they
+                                            //are still authenticated. So our fear that drives this line of code is having an unverified user who is authenticated. When we sign out we unauthenticate them so now auth.currentUser has no user
+                                            //limiting the access. It's a VERY important safe measure
+                                            showVerificationDialog = true
                                         }
-                                    }
-                                    .addOnFailureListener { exception ->
-                                        isLoading = false
-
-                                        errorMessage = "Unable to retrieve your profile: " +
-                                                (exception.localizedMessage ?: "Please try again.")
                                     }
                             }else {
                                 isLoading = false
@@ -329,14 +342,15 @@ fun LoginScreen(
                         if(resetError.isEmpty()){
                             isResetLoading = true
 
-                            auth.sendPasswordResetEmail(emailToReset)
+                            auth.sendPasswordResetEmail(emailToReset)//Firebase provides this functionality. After sending the password it'll
+                                //handle sending the reset link to the user itself so all we have to do is to check that it is successful
                                 .addOnSuccessListener {
                                     isResetLoading = false
                                     showForgotPasswordDialog = false
 
                                     Toast.makeText(
                                         context,
-                                        "If an account is eligible, a password reset email will be sent.",
+                                        "A password reset email has been sent to the address you have provided.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
@@ -367,6 +381,38 @@ fun LoginScreen(
                     }
                 ) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showVerificationDialog){
+        AlertDialog(
+            onDismissRequest = {
+                showVerificationDialog = false
+            },
+
+            title = {
+                Text(
+                    text = "Email Verification Required",
+                    textAlign = TextAlign.Center
+                )
+            },
+
+            text = {
+                Text(
+                    text = "Your email address has not been verified. Please check your inbox and click the verification link before logging in.",
+                    textAlign = TextAlign.Justify
+                )
+            },
+
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showVerificationDialog = false // I'm making it false cz then the user will go to their email and verify. They cannot log in though without verifying so it'll keep on popping up until they verify
+                    }
+                ) {
+                    Text("OK")
                 }
             }
         )
