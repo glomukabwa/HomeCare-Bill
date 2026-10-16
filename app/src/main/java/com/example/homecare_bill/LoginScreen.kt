@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -70,6 +71,8 @@ fun LoginScreen(
     var isResetLoading by remember { mutableStateOf(false) } //Tracks whether Firebase is processing the request
 
     var showVerificationDialog by remember { mutableStateOf(false) }
+    var isResendingVerification by remember { mutableStateOf(false) }
+    var verificationError by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier
@@ -227,18 +230,20 @@ fun LoginScreen(
                                                         errorMessage =  "Your account exists, but your profile is missing. Please complete your registration."
                                                     }
                                                 }
-                                                .addOnFailureListener { exception ->
+                                                .addOnFailureListener {
                                                     isLoading = false
 
-                                                    errorMessage = "Unable to retrieve your profile: " +
-                                                            (exception.localizedMessage ?: "Please try again.")
+                                                    errorMessage = "Unable to retrieve your profile. Please try again."
                                                 }
                                         } else {
                                             isLoading = false
-                                            auth.signOut()//Why do we need to do this despite the fact that it looks like the user hasn't logged in? One thing you need to know is that as soon as Firebase authenticates a user, it considers
+
+                                            //auth.signOut()//Why do we need to do this despite the fact that it looks like the user hasn't logged in? One thing you need to know is that as soon as Firebase authenticates a user, it considers
                                             //them as signed in despite the fact that we don't. So without this, later on in another page if you us if(auth.currentUser) for sessions, the unverified user will still have access cz they
                                             //are still authenticated. So our fear that drives this line of code is having an unverified user who is authenticated. When we sign out we unauthenticate them so now auth.currentUser has no user
                                             //limiting the access. It's a VERY important safe measure
+
+                                            verificationError = ""
                                             showVerificationDialog = true
                                         }
                                     }
@@ -389,7 +394,11 @@ fun LoginScreen(
     if (showVerificationDialog){
         AlertDialog(
             onDismissRequest = {
-                showVerificationDialog = false
+                if (!isResendingVerification){
+                    auth.signOut()
+                    verificationError = "" //I set this to empty every time I'm about to remove the dialog(like below) so that when it appears again, the if statement used to check if it is not empty doesn't return true cz then a previous error message will be displayed
+                    showVerificationDialog = false
+                }
             },
 
             title = {
@@ -400,19 +409,84 @@ fun LoginScreen(
             },
 
             text = {
-                Text(
-                    text = "Your email address has not been verified. Please check your inbox and click the verification link before logging in.",
-                    textAlign = TextAlign.Justify
-                )
+                Column{
+                    Text(
+                        text = "Your email address has not been verified. Please check your inbox and click the verification link. If you didn't receive the email, you can request another one.",
+                        textAlign = TextAlign.Justify
+                    )
+
+                    if (verificationError.isNotEmpty()){
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = verificationError,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             },
 
             confirmButton = {
                 TextButton(
+                    enabled = !isResendingVerification,
+
                     onClick = {
-                        showVerificationDialog = false // I'm making it false cz then the user will go to their email and verify. They cannot log in though without verifying so it'll keep on popping up until they verify
+                        val user = auth.currentUser
+
+                        if(user != null){
+                            verificationError = ""
+                            isResendingVerification = true
+
+                            user.sendEmailVerification()
+                                .addOnSuccessListener {
+
+                                    isResendingVerification = false
+
+                                    auth.signOut()//I'm signing the user out so as ensure I've denied them access until they have verified their email. Remember the success listener is only triggered after firebase has sent the email not after the user has clicked the link
+
+                                    verificationError = ""
+                                    showVerificationDialog = false
+
+                                    Toast.makeText(
+                                        context,
+                                        "Verification email sent! Please check your inbox.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                                .addOnFailureListener {
+                                    isResendingVerification = false
+
+                                    verificationError = "Failed to resend verification email. Please try again."
+                                }
+                        } else{
+                            isResendingVerification = false
+
+                            verificationError = "Your session has expired. Please log in again."
+                        }
                     }
                 ) {
-                    Text("OK")
+                    if (isResendingVerification){
+                        CircularProgressIndicator(
+                            modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }else{
+                        Text("Resend Email")
+                    }
+                }
+            },
+
+            dismissButton = {
+                TextButton(
+                    enabled = !isResendingVerification,
+
+                    onClick = {
+                        auth.signOut()// This is here cz it ensures that the user doesn't remain authenticated while waiting to verify their email. Until they verify their email and login they won't have access to the app features
+                        verificationError = ""
+                        showVerificationDialog = false
+                    }
+                ) {
+                    Text("Cancel")
                 }
             }
         )
