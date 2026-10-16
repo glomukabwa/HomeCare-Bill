@@ -46,13 +46,15 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    onRegisterClick : () -> Unit
+    onRegisterClick : () -> Unit,
         // onRegisterClick	The name of the parameter
         // ()	            The function takes no arguments
         // ->	            Separates the function's parameters from its return type
         // Unit	            The function doesn't return a meaningful value
         // In simple terms, we're telling LoginScreen: "You will receive a function that should be executed whenever someone clicks Register." This is called a callback function.
         // I'm putting it as a parameter here cz I don't want LoginScreen to handle navigation. I want all the navigation to be done in MainActivity so I'll specify the navigation there
+
+    onLoginSuccess: (String) -> Unit
 ){
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -208,11 +210,11 @@ fun LoginScreen(
                                                     //Above, addOnSuccessListener checks whether Firestore was able to process our request and return a result.
                                                     // However, this doesn't necessarily mean the requested document exists. Above we are asking, "Please look for a document in the users collection with this particular UID and tell me what you find."
                                                     // Firestore can successfully answer that request in two ways:
-                                                    //      - "Yes, I found the document. Here is its data."
+                                                    //      - "Yes, I found the document."
                                                     //      - "I successfully checked, but no document exists with that ID." So basically if the user profile doesn't exist it returns an empty string
-                                                    // That is why below we use document.exists() to check if the profile actually exists
+                                                    //A successful Firestore request doesn't necessarily mean the document exists. That is why below we use document.exists() to check whether Firestore actually returned an existing user profile document.
 
-                                                    if(document.exists()){//This checks whether Firestore actually returned an existing user profile document.
+                                                    if(document.exists()){
                                                         val role = document.getString("role")
 
                                                         if(role == "CLIENT" || role == "CAREGIVER"){
@@ -221,6 +223,8 @@ fun LoginScreen(
                                                                 "Login successful!",
                                                                 Toast.LENGTH_LONG
                                                             ).show()
+
+                                                            onLoginSuccess(role)
 
                                                             //Navigation based on role will come later
                                                         } else{

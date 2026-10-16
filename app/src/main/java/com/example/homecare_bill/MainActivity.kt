@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.homecare_bill.ui.theme.HomeCare_BillTheme
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,13 +46,61 @@ class MainActivity : ComponentActivity() {
 
                     NavHost(
                         navController = navController,
-                        startDestination = "login",//startDestination tells NavHost which screen should be displayed first
+                        startDestination = "session_check",//startDestination tells NavHost which screen should be displayed first
                         modifier = Modifier.padding(innerPadding)
                     ){
+                        composable("session_check"){
+                            SessionCheckScreen(
+                                onNoSession = {
+                                    navController.navigate("login") {
+                                        popUpTo("session_check"){
+                                            inclusive = true
+                                        }//The above lines of code mean: remove all the other pages in the backstack that precede login including session_check
+                                        //Why are we doing this? Cz we don't want sb to go back to the loading page of the session check after going to login.
+                                        // It has already been confirmed that u need to login again. The check doesn't need to be done twice
+                                        launchSingleTop = true
+                                        //This prevents Navigation Compose from creating another copy of the destination if it's already at the top of the back stack. Eg we don't want a backstack that looks like this: [LoginScreen, LoginScreen]
+                                        //Why would it create another copy? In case another set of code calls login, and another and another, they'll keep being added in the Backstack. We don't want this cz then the user will keep seeing a login screen
+                                        // when they hit back till they've finished all the login screens. So this line of code basically says, "If Login is already the destination at the top of the back stack, don't add another copy."
+                                    }
+                                },
+
+                                onValidSession = { role ->
+                                    val destination = when (role) {
+                                        "CLIENT" -> "client_dashboard"
+                                        "CAREGIVER" -> "caregiver_dashboard"
+                                        else -> "login"
+                                    }
+
+                                    navController.navigate(destination){
+                                        popUpTo("session_check"){
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
+                        }
+
                         composable("login") {
                             LoginScreen(
                                 onRegisterClick = {
                                     navController.navigate("register")
+                                },
+
+                                onLoginSuccess = {role ->
+                                    val destination = when (role){
+                                        "CLIENT" -> "client_dashboard"
+                                        "CAREGIVER" -> "caregiver_dashboard"
+                                        else -> "login"
+                                    }
+
+                                    navController.navigate(destination){
+                                        popUpTo("login"){
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
                                 }
                             )
                         }
@@ -74,6 +123,40 @@ class MainActivity : ComponentActivity() {
                                     //Also sth u need to know is that when someone clicks back on their phone(the btn at the bottom), it goes to the previous page on the backstack so if
                                     //a user is in Login and they want to exit the app, if u had not used popBackstack() they'll keep going back until they finish the backstack and that'll
                                     //inconvenient cz it'll be really long
+                                }
+                            )
+                        }
+
+                        composable("client_dashboard") {
+
+                            PlaceholderDashboard(
+                                role = "CLIENT",
+                                onLogout = {
+                                    FirebaseAuth.getInstance().signOut()
+
+                                    navController.navigate("login") {
+                                        popUpTo("client_dashboard") {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
+                        }
+
+                        composable("caregiver_dashboard") {
+
+                            PlaceholderDashboard(
+                                role = "CAREGIVER",
+                                onLogout = {
+                                    FirebaseAuth.getInstance().signOut()
+
+                                    navController.navigate("login") {
+                                        popUpTo("caregiver_dashboard") {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
                                 }
                             )
                         }
