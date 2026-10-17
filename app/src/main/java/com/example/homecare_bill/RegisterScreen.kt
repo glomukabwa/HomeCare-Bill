@@ -343,6 +343,9 @@ fun RegisterScreen(
                                         user.sendEmailVerification()// Firebase will handle sending the verification link and checking if it's clicked. We just have to check whether it is or is not successful
                                             .addOnSuccessListener {// Sth you should know is that this just checks if Firebase was able to send the email. It doesn't check
                                                 //if the user has clicked the verification link so in Login, we're gonna check if the user is verified b4 giving them access
+
+                                                auth.signOut()//I'm signing them out so that a user doesn't remain signed in before they click the verification link
+
                                                 isLoading = false
                                                 profileSaveFailed = false
 
@@ -353,20 +356,28 @@ fun RegisterScreen(
                                                     //Toast.LENGTH_LONG lasts for exactly 3.5 seconds.
                                                     //Toast.LENGTH_SHORT lasts for exactly 2 seconds.
                                                 ).show()
+
+                                                onLoginClick()
                                             }
                                             .addOnFailureListener { exception ->
+
+                                                auth.signOut()//The account and Firestore profile were created successfully, but Firebase could not send the verification email. So we're signing out the unverified user.
+
                                                 isLoading = false
 
                                                 Toast.makeText(
                                                     context,
-                                                    "Account created, but verification email could not be sent: " +
-                                                            (exception.localizedMessage ?: "Please try again later"),
+                                                    "Account created, but verification email could not be sent. Please log in and use the Resend Email option.",
                                                     Toast.LENGTH_LONG
                                                 ).show()
+
+                                                onLoginClick()//If it fails sending here, when they go to login, it can check and send another link from there
                                             }
 
                                     }
                                     .addOnFailureListener { exception ->
+
+                                        //There's no auth.signOut() here cz we need to keep the user signed in so they can retry saving their profile.
 
                                         isLoading = false //Cz if there's an error, loading needs to stop so that the error message is displayed
                                         profileSaveFailed = true
@@ -457,20 +468,44 @@ fun RegisterScreen(
                                 .document(user.uid)//The ID that was created bu Authentification
                                 .set(userProfile)
                                 .addOnSuccessListener {
-                                    isLoading = false
-                                    profileSaveFailed = false
+                                    user.sendEmailVerification()
+                                        .addOnSuccessListener {
 
-                                    Toast.makeText(
-                                        context,
-                                        "Registration completed successfully!",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                            auth.signOut()//Sign the user out until they verify their email.
+
+                                            isLoading = false
+                                            profileSaveFailed = false
+
+                                            Toast.makeText(
+                                                context,
+                                                "Registration completed successfully! Please verify your email before logging in.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+
+                                            onLoginClick()
+                                        }
+                                        .addOnFailureListener {
+
+                                            auth.signOut()//The account and profile were created successfully, but the verification email request failed. The user can request another email from the Login screen.
+
+                                            isLoading = false
+                                            profileSaveFailed = false
+
+                                            Toast.makeText(
+                                                context,
+                                                "Your account was created, but we couldn't send the verification email. " +
+                                                        "Please log in and use the Resend Email option.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+
+                                            onLoginClick()
+                                        }
                                 }
                                 .addOnFailureListener { exception ->
+
+                                    //There's no auth.signOut() here cz we need to keep the user signed in so they can retry saving their profile.
                                     isLoading = false
-                                    errorMessage =
-                                        "Profile save failed: " +
-                                                (exception.localizedMessage ?: "Please try again.")
+                                    errorMessage = "Profile save failed. Please try again."
                                 }
                         }else{
                             profileSaveFailed = false
@@ -494,7 +529,9 @@ fun RegisterScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
+                        auth.signOut()//The user has chosen not to retry saving their profile. Sign them out rather than leaving an incomplete registration session.
                         profileSaveFailed = false
+                        onLoginClick()
                     },
                     enabled = !isLoading
                 ) {
@@ -509,7 +546,10 @@ fun RegisterScreen(
                     // retry has either succeeded or failed. However, there's a chance that the user may try to dismiss the alert while the app is retying registration
                     // so this section is here to ensure that isLoading is false (meaning there's no process going on), before profileSaveFailed is set to false making
                     // the dialog box disappear.
+
+                    auth.signOut()//The user has chosen not to retry saving their profile. Sign them out rather than leaving an incomplete registration session.
                     profileSaveFailed = false
+                    onLoginClick()
                 }
             }
 

@@ -3,6 +3,7 @@ package com.example.homecare_bill
 import android.se.omapi.Session
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -15,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -27,9 +29,11 @@ fun SessionCheckScreen(
     //"There isn't a valid session. Navigate to Login."
     //We aren't directly navigating inside the session-checking screen.
 
-    onValidSession: (String) -> Unit
+    onValidSession: (String) -> Unit,
     //The (String) means the callback accepts a String argument.
     //We'll use that String to pass the user's role eg onValidSession("CLIENT") or onValidSession("CAREGIVER")
+
+    onMissingProfile: () -> Unit
 ) {
     val auth = FirebaseAuth.getInstance()
     var db = FirebaseFirestore.getInstance()
@@ -63,36 +67,47 @@ fun SessionCheckScreen(
                 //The user's account information may have changed since then. Calling reload() helps us obtain the latest account information before allowing access.
                 .addOnSuccessListener {
                     if (user.isEmailVerified){
-                        db.collection("users")
-                            .document(user.uid)
-                            .get()
-                            .addOnSuccessListener { document ->
 
-                                if (document.exists()) {
+                        user.getIdToken(true)
+                            .addOnSuccessListener {
 
-                                    val role = document.getString("role")
+                                db.collection("users")
+                                    .document(user.uid)
+                                    .get()
+                                    .addOnSuccessListener { document ->
 
-                                    if (role == "CLIENT" || role == "CAREGIVER") {
-                                        //Notice that we aren't automatically accepting "ADMIN" here. Administrator access will require a separate, trusted authorization flow.
+                                        if (document.exists()) {
 
-                                        onValidSession(role)
+                                            val role = document.getString("role")
 
-                                    } else {
+                                            if (role == "CLIENT" || role == "CAREGIVER") {
 
-                                        auth.signOut()
-                                        onNoSession()
+                                                onValidSession(role)
+
+                                            } else {
+
+                                                auth.signOut()
+                                                onNoSession()
+                                            }
+
+                                        } else {
+
+                                            onMissingProfile()//Firebase Authentication confirms the user's identity, but their Firestore profile does not exist. Keep the verified user signed in so they can complete registration.
+                                        }
+                                    }
+                                    .addOnFailureListener {
+
+                                        isChecking = false//A failed Firestore request does not necessarily mean the user's profile is missing. It could be a temporary network problem.
+
+                                        sessionError =
+                                            "Unable to retrieve your profile. Please check your internet connection and try again."
                                     }
 
-                                } else {
-
-                                    auth.signOut()
-                                    onNoSession()
-                                }
                             }
                             .addOnFailureListener {
-
                                 isChecking = false
-                                sessionError = "Unable to retrieve your profile. Please check your internet connection and try again."
+
+                                sessionError = "Unable to verify your session. Please try again."
                             }
                     }else{
                         auth.signOut()
@@ -107,7 +122,7 @@ fun SessionCheckScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -116,7 +131,10 @@ fun SessionCheckScreen(
 
             Text("Checking your session...")
         } else if(sessionError.isNotEmpty()){
-            Text(sessionError)
+            Text(
+                text = sessionError,
+                textAlign = TextAlign.Center
+            )
             Button(
                 onClick = {
                     retryCount++

@@ -54,7 +54,8 @@ fun LoginScreen(
         // In simple terms, we're telling LoginScreen: "You will receive a function that should be executed whenever someone clicks Register." This is called a callback function.
         // I'm putting it as a parameter here cz I don't want LoginScreen to handle navigation. I want all the navigation to be done in MainActivity so I'll specify the navigation there
 
-    onLoginSuccess: (String) -> Unit
+    onLoginSuccess: (String) -> Unit,
+    onCompleteProfile: () -> Unit
 ){
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -201,43 +202,55 @@ fun LoginScreen(
                                     // Notice that the reload happens before profile retrieval. That's cz we want to confirm the user's email that has been verified b4 continuing with the login process. It comes after Authentification cz we use auth to get user info
                                     .addOnSuccessListener {
                                         if (user.isEmailVerified) {
-                                            db.collection("users")
-                                                .document(user.uid)
-                                                .get()//Retrieves the user's Firestore profile
-                                                .addOnSuccessListener { document ->
-                                                    isLoading = false
 
-                                                    //Above, addOnSuccessListener checks whether Firestore was able to process our request and return a result.
-                                                    // However, this doesn't necessarily mean the requested document exists. Above we are asking, "Please look for a document in the users collection with this particular UID and tell me what you find."
-                                                    // Firestore can successfully answer that request in two ways:
-                                                    //      - "Yes, I found the document."
-                                                    //      - "I successfully checked, but no document exists with that ID." So basically if the user profile doesn't exist it returns an empty string
-                                                    //A successful Firestore request doesn't necessarily mean the document exists. That is why below we use document.exists() to check whether Firestore actually returned an existing user profile document.
+                                            user.getIdToken(true)//Why do we need this when we already have the user.reload() above? In simple terms, reload() tells the app that Mary is verified while getIdToken(true) ensures that her authentification token reflects
+                                                //verification when Firestore checks it. Basically, the former updates the frontEnd while the latter updates the backend. Cz rn we've added a rule on allow read that states that the user can't read data unless the email is verified
+                                                //and u would think, well the user is already verified that's y we've made it inside the if clause. The app knows u're verified cz of reload() but there's a chance that Authentification (which is in charge of the
+                                                //token: uid+email+emailVerificationStatus+password) still isn't. Why? Because an ID token represents the user's authentication information at the time it was issued. It doesn't automatically change when something on the server changes.
+                                                //So this line of code forces the token to refresh and so backend is updated
+                                                .addOnSuccessListener {
+                                                    db.collection("users")
+                                                        .document(user.uid)
+                                                        .get()//Retrieves the user's Firestore profile
+                                                        .addOnSuccessListener { document ->
+                                                            isLoading = false
 
-                                                    if(document.exists()){
-                                                        val role = document.getString("role")
+                                                            //Above, addOnSuccessListener checks whether Firestore was able to process our request and return a result.
+                                                            // However, this doesn't necessarily mean the requested document exists. Above we are asking, "Please look for a document in the users collection with this particular UID and tell me what you find."
+                                                            // Firestore can successfully answer that request in two ways:
+                                                            //      - "Yes, I found the document."
+                                                            //      - "I successfully checked, but no document exists with that ID." So basically if the user profile doesn't exist it returns an empty string
+                                                            //A successful Firestore request doesn't necessarily mean the document exists. That is why below we use document.exists() to check whether Firestore actually returned an existing user profile document.
 
-                                                        if(role == "CLIENT" || role == "CAREGIVER"){
-                                                            Toast.makeText(
-                                                                context,//This provides access to the Android environment needed for the Toast operation.
-                                                                "Login successful!",
-                                                                Toast.LENGTH_LONG
-                                                            ).show()
+                                                            if(document.exists()){
+                                                                val role = document.getString("role")
 
-                                                            onLoginSuccess(role)
+                                                                if(role == "CLIENT" || role == "CAREGIVER"){
+                                                                    Toast.makeText(
+                                                                        context,//This provides access to the Android environment needed for the Toast operation.
+                                                                        "Login successful!",
+                                                                        Toast.LENGTH_LONG
+                                                                    ).show()
 
-                                                            //Navigation based on role will come later
-                                                        } else{
-                                                            errorMessage = "Your account has an invalid role. Please contact support."
+                                                                    onLoginSuccess(role)
+
+                                                                    //Navigation based on role will come later
+                                                                } else{
+                                                                    errorMessage = "Your account has an invalid role. Please contact support."
+                                                                }
+                                                            } else {
+                                                                onCompleteProfile()
+                                                            }
                                                         }
-                                                    } else {
-                                                        errorMessage =  "Your account exists, but your profile is missing. Please complete your registration."
-                                                    }
-                                                }
-                                                .addOnFailureListener {
-                                                    isLoading = false
+                                                        .addOnFailureListener {
+                                                            isLoading = false
 
-                                                    errorMessage = "Unable to retrieve your profile. Please try again."
+                                                            errorMessage = "Unable to retrieve your profile. Please try again."
+                                                        }
+                                                }
+                                                .addOnFailureListener { exception ->
+                                                    isLoading = false
+                                                    errorMessage = "Unable to verify your session. Please try again."
                                                 }
                                         } else {
                                             isLoading = false

@@ -78,6 +78,18 @@ class MainActivity : ComponentActivity() {
                                         }
                                         launchSingleTop = true
                                     }
+                                },
+
+                                onMissingProfile = {
+
+                                    navController.navigate("complete_profile") {
+
+                                        popUpTo("session_check") {
+                                            inclusive = true
+                                        }
+
+                                        launchSingleTop = true
+                                    }
                                 }
                             )
                         }
@@ -101,9 +113,53 @@ class MainActivity : ComponentActivity() {
                                         }
                                         launchSingleTop = true
                                     }
+                                },
+
+                                onCompleteProfile = {
+                                    navController.navigate("complete_profile"){
+                                        launchSingleTop = true
+                                    }
                                 }
                             )
                         }
+
+
+                        composable("complete_profile") {
+
+                            CompleteProfileScreen(
+
+                                onProfileCompleted = { role ->
+
+                                    val destination = when (role) {
+                                        "CLIENT" -> "client_dashboard"
+                                        "CAREGIVER" -> "caregiver_dashboard"
+                                        else -> "login"
+                                    }
+
+                                    navController.navigate(destination) {
+
+                                        popUpTo(navController.graph.id) {//Remove the recovery screen and any previous authentication screens from the back stack.
+                                            inclusive = false
+                                        }
+
+                                        launchSingleTop = true
+                                    }
+                                },
+
+                                onCancel = {
+
+                                    navController.navigate("login") {
+
+                                        popUpTo(navController.graph.id) {//The user has cancelled recovery and signed out. Return to Login with a clean navigation history.
+                                            inclusive = false
+                                        }
+
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
+                        }
+
 
                         composable("register") {
                             RegisterScreen(
