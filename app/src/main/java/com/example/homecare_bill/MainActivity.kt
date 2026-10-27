@@ -185,13 +185,12 @@ class MainActivity : ComponentActivity() {
 
                         composable("client_dashboard") {
 
-                            PlaceholderDashboard(
-                                role = "CLIENT",
+                            ClientDashboardScreen(
                                 onLogout = {
                                     FirebaseAuth.getInstance().signOut()
 
-                                    navController.navigate("login") {
-                                        popUpTo("client_dashboard") {
+                                    navController.navigate("login"){
+                                        popUpTo("client_dashboard"){
                                             inclusive = true
                                         }
                                         launchSingleTop = true
