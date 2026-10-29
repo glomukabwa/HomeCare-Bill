@@ -1,5 +1,6 @@
 package com.example.homecare_bill
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,7 +57,8 @@ data class CareRecipient(//A data class is a Kotlin class primarily designed to 
 @Composable
 fun ClientDashboardScreen(
     onLogout: () -> Unit,
-    onAddCareRecipient: () -> Unit
+    onAddCareRecipient: () -> Unit,
+    onRecipientClick: (String) -> Unit
 ){
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -157,7 +159,7 @@ fun ClientDashboardScreen(
                             //      ]
                             //map() is a function that transforms every element in a collection into something else. In this case it converts the content of the documents to CareRecipient objects
                             CareRecipient(
-                                id = document.id,//document.id already returns a String. We don't need to convert it.
+                                id = document.id,//document.id already returns a String. We don't need to convert it. The id is the unique value created by Firebase.
                                 firstName = document.getString("firstName") ?: "", //?: checks if what is on the left is either missing or null
                                 lastName = document.getString("lastName") ?: "",
                                 relationship = document.getString("relationship") ?: ""
@@ -268,7 +270,7 @@ fun ClientDashboardScreen(
                     }
 
 
-// CARE RECIPIENTS SECTION
+                    // CARE RECIPIENTS SECTION
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -305,7 +307,11 @@ fun ClientDashboardScreen(
                             else -> {
                                 careRecipients.forEach { recipient ->
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable{
+                                                onRecipientClick(recipient.id)
+                                            },
                                         shape = RoundedCornerShape(16.dp)
                                     ) {
                                         Column(

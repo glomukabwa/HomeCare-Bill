@@ -183,14 +183,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        composable("client_dashboard") {
 
+                        composable("client_dashboard") {
                             ClientDashboardScreen(
                                 onLogout = {
                                     FirebaseAuth.getInstance().signOut()
 
-                                    navController.navigate("login"){
-                                        popUpTo("client_dashboard"){
+                                    navController.navigate("login") {
+                                        popUpTo("client_dashboard") {
                                             inclusive = true
                                         }
                                         launchSingleTop = true
@@ -198,6 +198,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onAddCareRecipient = {
                                     navController.navigate("add_care_recipient")
+                                },
+                                onRecipientClick = { recipientId ->
+                                    navController.navigate("care_recipient_details/$recipientId")
                                 }
                             )
                         }
@@ -213,6 +216,27 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+
+                        composable("care_recipient_details/{recipientId}") { backStackEntry ->
+
+                            val recipientId = backStackEntry.arguments?.getString("recipientId") ?: ""
+                            //backStackEntry is an object that represents a destination in Android's navigation back stack.
+                            //We use it to access the arguments passed to the destination defined in the composable brackets composable(..This destination..)
+                            //The composable() navigation function provides a NavBackStackEntry object to its lambda.
+                            //We decided to call that object backStackEntry. It is just a parameter name, not a Kotlin keyword.
+                            // ?. Safely accesses the arguments if they aren't null
+                            // .getString("recipientId")	Retrieves the argument named recipientId as a String
+                            // ?: ""	Uses an empty String if the argument is null
+
+                            CareRecipientDetailsScreen(
+                                recipientId = recipientId,
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
 
 
                         composable("caregiver_dashboard") {
