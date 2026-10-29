@@ -195,9 +195,25 @@ class MainActivity : ComponentActivity() {
                                         }
                                         launchSingleTop = true
                                     }
+                                },
+                                onAddCareRecipient = {
+                                    navController.navigate("add_care_recipient")
                                 }
                             )
                         }
+
+
+                        composable("add_care_recipient") {
+                            AddCareRecipientScreen(
+                                onBack = {
+                                    navController.popBackStack()
+                                },
+                                onSaved = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
 
                         composable("caregiver_dashboard") {
 
