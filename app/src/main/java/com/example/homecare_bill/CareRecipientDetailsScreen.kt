@@ -14,7 +14,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun CareRecipientDetailsScreen(
     recipientId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onInviteCaregiver: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -267,6 +268,13 @@ fun CareRecipientDetailsScreen(
                         }
                     }
                 }
+            }
+
+            Button(
+                onClick = onInviteCaregiver,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Invite Caregiver")
             }
         }
     }

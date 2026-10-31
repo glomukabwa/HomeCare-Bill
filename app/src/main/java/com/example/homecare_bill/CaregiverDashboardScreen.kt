@@ -37,14 +37,39 @@ fun CaregiverDashboardScreen(
                 .addOnSuccessListener { document ->
                     isLoading = false
 
+
                     if (document.exists() &&
                         document.getString("role") == "CAREGIVER"
                     ) {
-                        firstName =
-                            document.getString("firstName") ?: ""
+                        firstName = document.getString("firstName") ?: ""
+
+                        val caregiverData = hashMapOf(
+                            "email" to (document.getString("email") ?: ""),
+                            "firstName" to (document.getString("firstName") ?: ""),
+                            "lastName" to (document.getString("lastName") ?: "")
+                        )
+
+                        val directoryRef = db.collection("caregiverDirectory")
+                            .document(uid)//We're using the same uid as the one in users. It'll tie the data in this collection with the data in the users collection
+
+                        directoryRef.get()
+                            .addOnSuccessListener { directoryDocument ->
+
+                                if (!directoryDocument.exists()) {
+                                    directoryRef.set(caregiverData)//Unlike .add(), which generates an automatic document ID, .set() writes to the document reference we've specified.
+                                        .addOnFailureListener {
+                                            errorMessage =
+                                                "Unable to create caregiver directory entry."
+                                        }
+                                }
+                            }
+                            .addOnFailureListener {
+                                errorMessage =
+                                    "Unable to check caregiver directory."
+                            }
+
                     } else {
-                        errorMessage =
-                            "Unable to load caregiver profile."
+                        errorMessage = "Unable to load caregiver profile."
                     }
                 }
                 .addOnFailureListener {

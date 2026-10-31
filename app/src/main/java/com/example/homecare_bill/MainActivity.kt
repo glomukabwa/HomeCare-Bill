@@ -13,9 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScrollModifierNode
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.example.homecare_bill.ui.theme.HomeCare_BillTheme
 import com.google.firebase.auth.FirebaseAuth
 
@@ -233,6 +235,9 @@ class MainActivity : ComponentActivity() {
                                 recipientId = recipientId,
                                 onBack = {
                                     navController.popBackStack()
+                                },
+                                onInviteCaregiver = {
+                                    navController.navigate("invite_caregiver/$recipientId")
                                 }
                             )
                         }
@@ -253,6 +258,30 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+
+
+                        composable(
+                            route = "invite_caregiver/{recipientId}",
+                            arguments = listOf(
+                                navArgument("recipientId") {
+                                    type = NavType.StringType
+                                }
+                            )
+                        ) { backStackEntry ->
+
+                            val recipientId =
+                                backStackEntry.arguments
+                                    ?.getString("recipientId")
+                                    ?: ""
+
+                            InviteCaregiverScreen(
+                                recipientId = recipientId,
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
                     }
                 }
             }
