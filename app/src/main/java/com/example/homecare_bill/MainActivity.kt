@@ -255,6 +255,9 @@ class MainActivity : ComponentActivity() {
                                         }
                                         launchSingleTop = true
                                     }
+                                },
+                                onViewInvitations = {
+                                    navController.navigate("caregiver_invitations")
                                 }
                             )
                         }
@@ -276,6 +279,14 @@ class MainActivity : ComponentActivity() {
 
                             InviteCaregiverScreen(
                                 recipientId = recipientId,
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("caregiver_invitations") {
+                            CaregiverInvitationsScreen(
                                 onBack = {
                                     navController.popBackStack()
                                 }

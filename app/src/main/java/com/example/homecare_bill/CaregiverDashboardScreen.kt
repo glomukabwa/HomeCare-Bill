@@ -15,7 +15,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CaregiverDashboardScreen(
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onViewInvitations: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -23,6 +24,8 @@ fun CaregiverDashboardScreen(
     var firstName by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
+
+    var pendingInvitationCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         val uid = auth.currentUser?.uid
@@ -79,6 +82,36 @@ fun CaregiverDashboardScreen(
                 }
         }
     }
+
+
+    val caregiverEmail = auth.currentUser?.email
+
+    DisposableEffect(caregiverEmail) {
+
+        if (caregiverEmail.isNullOrBlank()) {
+            pendingInvitationCount = 0
+            onDispose { }
+        } else {
+
+            val listener = db.collection("caregiverInvites")
+                .whereEqualTo("caregiverEmail", caregiverEmail)
+                .whereEqualTo("status", "PENDING")
+                .addSnapshotListener { snapshot, error ->
+
+                    if (error != null) {
+                        pendingInvitationCount = 0
+                        return@addSnapshotListener
+                    }
+
+                    pendingInvitationCount = snapshot?.size() ?: 0
+                }
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
 
     Scaffold(
         topBar = {
@@ -137,11 +170,36 @@ fun CaregiverDashboardScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "No pending invitations yet.",
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+
+                            when {
+                                pendingInvitationCount == 0 -> {
+                                    Text("No pending invitations yet.")
+                                }
+
+                                pendingInvitationCount == 1 -> {
+                                    Text("You have 1 pending invitation.")
+                                }
+
+                                else -> {
+                                    Text(
+                                        "You have $pendingInvitationCount pending invitations."
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = onViewInvitations,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("View Invitations")
+                            }
+                        }
                     }
+
 
                     Text(
                         text = "Assigned Care Recipients",

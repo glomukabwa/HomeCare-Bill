@@ -31,12 +31,12 @@ fun InviteCaregiverScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Invite Caregiver") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
-                    }
-                }
+                title = { Text("Invite Caregiver") }
+                //navigationIcon = {
+                    //TextButton(onClick = onBack) {
+                        //Text("Back")
+                    //}
+                //}
             )
         }
     ) { paddingValues ->
@@ -50,10 +50,10 @@ fun InviteCaregiverScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            Text(
-                text = "Invite a caregiver",
-                style = MaterialTheme.typography.headlineSmall
-            )
+            //Text(
+                //text = "Invite a caregiver",
+                //style = MaterialTheme.typography.headlineSmall
+            //)
 
             Text(
                 text = "Enter the email address of the caregiver you want to invite to care for this recipient."
@@ -100,26 +100,78 @@ fun InviteCaregiverScreen(
                         errorMessage = ""
                         successMessage = ""
 
-                        val invitation = hashMapOf(
-                            "caregiverEmail" to email,
-                            "clientId" to currentUser.uid,
-                            "recipientId" to recipientId,
-                            "status" to "PENDING",
-                            "createdAt" to FieldValue.serverTimestamp()
-                        )
+                        db.collection("users")
+                            .document(currentUser.uid)
+                            .get()
+                            .addOnSuccessListener { clientDocument ->
 
-                        db.collection("caregiverInvites")
-                            .add(invitation)
-                            .addOnSuccessListener {
-                                isLoading = false
-                                successMessage = "Invitation sent successfully!"
-                                caregiverEmail = ""
+                                if (!clientDocument.exists()) {
+                                    isLoading = false
+                                    errorMessage = "Client profile not found."
+                                    return@addOnSuccessListener
+                                }
+
+                                val clientFirstName = clientDocument.getString("firstName") ?: ""
+
+                                val clientLastName = clientDocument.getString("lastName") ?: ""
+
+                                val clientName = "$clientFirstName $clientLastName"
+
+                                db.collection("careRecipients")
+                                    .document(recipientId)
+                                    .get()
+                                    .addOnSuccessListener { recipientDocument ->
+
+                                        if (!recipientDocument.exists()) {
+                                            isLoading = false
+                                            errorMessage = "Care recipient not found."
+                                            return@addOnSuccessListener
+                                        }
+
+                                        val recipientFirstName = recipientDocument.getString("firstName") ?: ""
+
+                                        val recipientLastName = recipientDocument.getString("lastName") ?: ""
+
+                                        val recipientName = "$recipientFirstName $recipientLastName"
+
+                                        val relationship = recipientDocument.getString("relationship") ?: ""
+
+                                        val invitation = hashMapOf(
+                                            "caregiverEmail" to email,
+                                            "clientId" to currentUser.uid,
+                                            "recipientId" to recipientId,
+                                            "clientName" to clientName,
+                                            "recipientName" to recipientName,
+                                            "relationship" to relationship,
+                                            "status" to "PENDING",
+                                            "createdAt" to FieldValue.serverTimestamp()
+                                        )
+
+                                        db.collection("caregiverInvites")
+                                            .add(invitation)
+                                            .addOnSuccessListener {
+                                                isLoading = false
+                                                successMessage = "Invitation sent successfully!"
+                                                caregiverEmail = ""
+                                            }
+                                            .addOnFailureListener { exception ->
+                                                isLoading = false
+                                                errorMessage = exception.localizedMessage
+                                                    ?: "Unable to send invitation."
+                                            }
+                                    }
+                                    .addOnFailureListener { exception ->
+                                        isLoading = false
+                                        errorMessage = exception.localizedMessage
+                                            ?: "Unable to load care recipient."
+                                    }
                             }
                             .addOnFailureListener { exception ->
                                 isLoading = false
                                 errorMessage = exception.localizedMessage
-                                    ?: "Unable to send invitation."
+                                    ?: "Unable to load client profile."
                             }
+
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -129,6 +181,12 @@ fun InviteCaregiverScreen(
                     if (isLoading) "Sending Invitation..."
                     else "Send Invitation"
                 )
+            }
+
+            OutlinedButton(
+                onClick = onBack
+            ) {
+                Text("Back")
             }
         }
     }
