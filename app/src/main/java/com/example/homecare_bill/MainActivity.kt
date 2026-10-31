@@ -258,6 +258,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onViewInvitations = {
                                     navController.navigate("caregiver_invitations")
+                                },
+                                onViewAssignments = {
+                                    navController.navigate("assigned_care_recipients")
                                 }
                             )
                         }
@@ -287,6 +290,14 @@ class MainActivity : ComponentActivity() {
 
                         composable("caregiver_invitations") {
                             CaregiverInvitationsScreen(
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("assigned_care_recipients") {
+                            AssignedCareRecipientsScreen(
                                 onBack = {
                                     navController.popBackStack()
                                 }

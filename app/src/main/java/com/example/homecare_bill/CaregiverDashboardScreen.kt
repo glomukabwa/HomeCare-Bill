@@ -16,7 +16,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun CaregiverDashboardScreen(
     onLogout: () -> Unit,
-    onViewInvitations: () -> Unit
+    onViewInvitations: () -> Unit,
+    onViewAssignments: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -26,6 +27,8 @@ fun CaregiverDashboardScreen(
     var errorMessage by remember { mutableStateOf("") }
 
     var pendingInvitationCount by remember { mutableIntStateOf(0) }
+
+    var assignedRecipientCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         val uid = auth.currentUser?.uid
@@ -104,6 +107,47 @@ fun CaregiverDashboardScreen(
                     }
 
                     pendingInvitationCount = snapshot?.size() ?: 0
+                }
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
+
+    val caregiverUid = auth.currentUser?.uid
+
+    DisposableEffect(caregiverUid, caregiverEmail) {
+
+        if (caregiverUid.isNullOrBlank() ||
+            caregiverEmail.isNullOrBlank()
+        ) {
+            assignedRecipientCount = 0
+            onDispose { }
+        } else {
+
+            val listener = db.collection("caregiverInvites")
+                .whereEqualTo("caregiverEmail", caregiverEmail)
+                .whereEqualTo("caregiverId", caregiverUid)
+                .whereEqualTo("status", "ACTIVE")
+                .addSnapshotListener { snapshot, error ->
+
+                    if (error != null) {
+                        assignedRecipientCount = 0
+                        return@addSnapshotListener //This halts further execution of this specific callback instance. The app skips any code that comes after the if block inside those curly braces. However, plz not that the listener is not disposed. It still remains alive.
+                    }
+
+                    assignedRecipientCount = snapshot?.documents
+                        ?.mapNotNull { document ->
+                            document.getString("recipientId")
+                        }
+                        ?.distinct()
+                        ?.size ?: 0
+                    // Explanation:
+                    //      mapNotNull() extracts the recipientId from each invitation, excluding missing values.
+                    //      distinct() removes duplicate recipient IDs.
+                    //      size counts the remaining unique recipients.
                 }
 
             onDispose {
@@ -200,7 +244,6 @@ fun CaregiverDashboardScreen(
                         }
                     }
 
-
                     Text(
                         text = "Assigned Care Recipients",
                         style = MaterialTheme.typography.titleLarge,
@@ -210,11 +253,28 @@ fun CaregiverDashboardScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "No assigned care recipients yet.",
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+
+                            when (assignedRecipientCount) {
+                                0 -> Text("No assigned care recipients yet.")
+                                1 -> Text("You have 1 assigned care recipient.")
+                                else -> Text(
+                                    "You have $assignedRecipientCount assigned care recipients."
+                                )
+                            }
+
+                            Button(
+                                onClick = onViewAssignments,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("View Assigned Recipients")
+                            }
+                        }
                     }
+
 
                     Text(
                         text = "Invoices",
