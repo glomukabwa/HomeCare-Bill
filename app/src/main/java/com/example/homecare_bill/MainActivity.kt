@@ -240,9 +240,7 @@ class MainActivity : ComponentActivity() {
 
 
                         composable("caregiver_dashboard") {
-
-                            PlaceholderDashboard(
-                                role = "CAREGIVER",
+                            CaregiverDashboardScreen(
                                 onLogout = {
                                     FirebaseAuth.getInstance().signOut()
 
