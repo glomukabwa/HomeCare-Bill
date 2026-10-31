@@ -28,6 +28,10 @@ fun CaregiverInvitationsScreen(
 
     val caregiverEmail = auth.currentUser?.email
 
+    var processingInvitationId by remember { mutableStateOf<String?>(null) }
+    val caregiverUid = auth.currentUser?.uid
+    var actionError by remember { mutableStateOf("") }
+
     DisposableEffect(caregiverEmail) {
 
         if (caregiverEmail.isNullOrBlank()) {
@@ -91,6 +95,13 @@ fun CaregiverInvitationsScreen(
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
+            // Errors from accepting or declining invitations
+            if (actionError.isNotEmpty()) {
+                Text(
+                    text = actionError,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
 
             when {
                 isLoading -> {
@@ -109,6 +120,7 @@ fun CaregiverInvitationsScreen(
                 }
 
                 else -> {
+
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -145,6 +157,82 @@ fun CaregiverInvitationsScreen(
                                         text = "Status: ${invitation.status}",
                                         color = MaterialTheme.colorScheme.primary
                                     )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+
+                                        OutlinedButton(
+                                            onClick = {
+
+                                                val uid = caregiverUid
+
+                                                if (uid == null) {
+                                                    actionError = "Please sign in again."
+                                                } else {
+                                                    actionError = ""
+                                                    processingInvitationId = invitation.id
+
+                                                    db.collection("caregiverInvites")
+                                                        .document(invitation.id)
+                                                        .update(
+                                                            mapOf(
+                                                                "status" to "DECLINED",
+                                                                "caregiverId" to uid
+                                                            )
+                                                        )
+                                                        .addOnSuccessListener {
+                                                            processingInvitationId = null
+                                                        }
+                                                        .addOnFailureListener { exception ->
+                                                            processingInvitationId = null
+                                                            actionError = exception.localizedMessage
+                                                                ?: "Unable to decline invitation."
+                                                        }
+                                                }
+                                            },
+                                            enabled = processingInvitationId == null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Decline")
+                                        }
+
+                                        Button(
+                                            onClick = {
+
+                                                val uid = caregiverUid
+
+                                                if (uid == null) {
+                                                    actionError = "Please sign in again."
+                                                } else {
+                                                    actionError = ""
+                                                    processingInvitationId = invitation.id
+
+                                                    db.collection("caregiverInvites")
+                                                        .document(invitation.id)
+                                                        .update(
+                                                            mapOf(
+                                                                "status" to "ACTIVE",
+                                                                "caregiverId" to uid
+                                                            )
+                                                        )
+                                                        .addOnSuccessListener {
+                                                            processingInvitationId = null
+                                                        }
+                                                        .addOnFailureListener { exception ->
+                                                            processingInvitationId = null
+                                                            actionError = exception.localizedMessage
+                                                                ?: "Unable to accept invitation."
+                                                        }
+                                                }
+                                            },
+                                            enabled = processingInvitationId == null,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Accept")
+                                        }
+                                    }
 
                                 }
                             }
