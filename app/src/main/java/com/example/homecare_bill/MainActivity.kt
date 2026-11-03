@@ -261,6 +261,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onViewAssignments = {
                                     navController.navigate("assigned_care_recipients")
+                                },
+                                onViewServices = {
+                                    navController.navigate("service_catalogue")
                                 }
                             )
                         }
@@ -298,6 +301,14 @@ class MainActivity : ComponentActivity() {
 
                         composable("assigned_care_recipients") {
                             AssignedCareRecipientsScreen(
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("service_catalogue") {
+                            ServiceCatalogueScreen(
                                 onBack = {
                                     navController.popBackStack()
                                 }

@@ -17,7 +17,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun CaregiverDashboardScreen(
     onLogout: () -> Unit,
     onViewInvitations: () -> Unit,
-    onViewAssignments: () -> Unit
+    onViewAssignments: () -> Unit,
+    onViewServices: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -275,6 +276,12 @@ fun CaregiverDashboardScreen(
                         }
                     }
 
+                    Button(
+                        onClick = onViewServices,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("View Service Catalogue")
+                    }
 
                     Text(
                         text = "Invoices",
