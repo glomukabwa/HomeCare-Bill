@@ -15,3 +15,14 @@ __pycache__/
 
 # Firebase Android configuration
 app/google-services.json
+
+# Backend secrets
+backend/serviceAccountKey.json
+backend/.env
+
+# Python virtual environments
+backend/.venv/
+backend/venv/
+
+# Python cache
+backend/__pycache__/

@@ -9,9 +9,12 @@ from typing import Literal
 
 from model_loader import models, metadata
 from feature_engineering import prepare_features
+from invoice_routes import router as invoice_router
 
 
 app = FastAPI()
+
+app.include_router(invoice_router)
 
 
 class Transaction(BaseModel):
@@ -94,10 +97,10 @@ def analyze_transaction(transaction: Transaction):
     # Rememeber, with Isolation Forest's decision_function, lower values mean more abnormal.
     status = "FLAGGED_FOR_REVIEW" if is_anomaly else "NORMAL"
 
-    return{
-        "transaction_type:": transaction.transaction_type,
-        "anomaly_score": anomaly_score,
-        "threshold": threshold,
-        "is_anomaly": bool(is_anomaly),
-        "status": status
-    }
+    return {
+    "transaction_type": transaction.transaction_type,
+    "anomaly_score": float(anomaly_score),
+    "threshold": float(threshold),
+    "is_anomaly": bool(is_anomaly),
+    "status": status
+}
