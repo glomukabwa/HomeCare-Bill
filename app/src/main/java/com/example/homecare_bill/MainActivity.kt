@@ -303,12 +303,29 @@ class MainActivity : ComponentActivity() {
                             AssignedCareRecipientsScreen(
                                 onBack = {
                                     navController.popBackStack()
+                                },
+                                onCreateInvoice = { assignmentId ->
+                                    navController.navigate("create_invoice/$assignmentId")
                                 }
                             )
                         }
 
                         composable("service_catalogue") {
                             ServiceCatalogueScreen(
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("create_invoice/{assignmentId}") { backStackEntry ->
+
+                            val assignmentId = backStackEntry.arguments
+                                ?.getString("assignmentId")
+                                ?: return@composable
+
+                            CreateInvoiceScreen(
+                                assignmentId = assignmentId,
                                 onBack = {
                                     navController.popBackStack()
                                 }

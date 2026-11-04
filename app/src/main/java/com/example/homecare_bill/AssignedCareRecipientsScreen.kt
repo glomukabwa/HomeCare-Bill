@@ -14,7 +14,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssignedCareRecipientsScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onCreateInvoice: (String) -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -143,6 +144,15 @@ fun AssignedCareRecipientsScreen(
                                         text = "Status: Active",
                                         color = MaterialTheme.colorScheme.primary
                                     )
+
+                                    Button(
+                                        onClick = {
+                                            onCreateInvoice(assignment.id)
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Create Invoice")
+                                    }
                                 }
                             }
                         }
