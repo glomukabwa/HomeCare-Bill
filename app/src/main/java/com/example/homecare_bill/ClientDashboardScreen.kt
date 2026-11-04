@@ -58,7 +58,8 @@ data class CareRecipient(//A data class is a Kotlin class primarily designed to 
 fun ClientDashboardScreen(
     onLogout: () -> Unit,
     onAddCareRecipient: () -> Unit,
-    onRecipientClick: (String) -> Unit
+    onRecipientClick: (String) -> Unit,
+    onViewInvoices: () -> Unit
 ){
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -178,7 +179,13 @@ fun ClientDashboardScreen(
         bottomBar = {
             ClientBottomNavigation (
                 selectedTab = selectedTab,
-                onTabSelected = {tab -> selectedTab = tab}
+                onTabSelected = { tab ->
+                    if (tab == "billing") {
+                        onViewInvoices()
+                    } else {
+                        selectedTab = tab
+                    }
+                }
             )
         }
     ) { innerPadding ->
@@ -447,12 +454,6 @@ fun ClientDashboardScreen(
                     }
                 }
 
-            }
-
-            "billing" -> {
-                ClientBillingScreen(
-                    modifier = Modifier.padding(innerPadding)
-                )
             }
 
             "alerts" -> {

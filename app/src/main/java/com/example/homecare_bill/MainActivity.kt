@@ -203,6 +203,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onRecipientClick = { recipientId ->
                                     navController.navigate("care_recipient_details/$recipientId")
+                                },
+                                onViewInvoices = {
+                                    navController.navigate("client_invoices")
                                 }
                             )
                         }
@@ -326,6 +329,14 @@ class MainActivity : ComponentActivity() {
 
                             CreateInvoiceScreen(
                                 assignmentId = assignmentId,
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("client_invoices") {
+                            ClientInvoicesScreen(
                                 onBack = {
                                     navController.popBackStack()
                                 }
