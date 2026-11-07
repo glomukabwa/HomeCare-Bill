@@ -44,7 +44,11 @@ private data class ClientInvoice(
     //]
 
     val paymentState: String = "",
-    val currentPaymentId: String = ""
+    val currentPaymentId: String = "",
+    val anomalyStatus: String = "",
+    val isAnomaly: Boolean = false,
+    val anomalyReasons: List<String> = emptyList(),
+    val anomalyDetectionMethod: String = ""
 )
 
 private fun formatInvoiceMoney(cents: Long): String =
@@ -155,7 +159,14 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                                 ?: "UNKNOWN",
                             lineItems = parsedItems,
                             paymentState = doc.getString("paymentState") ?: "",
-                            currentPaymentId = doc.getString("currentPaymentId") ?: ""
+                            currentPaymentId = doc.getString("currentPaymentId") ?: "",
+                            anomalyStatus = doc.getString("anomalyStatus") ?: "",
+                            isAnomaly = doc.getBoolean("isAnomaly") ?: false,
+                            anomalyReasons = (doc.get("anomalyReasons") as? List<*>)
+                                ?.filterIsInstance<String>()
+                                ?: emptyList(),
+                            anomalyDetectionMethod =
+                                doc.getString("anomalyDetectionMethod") ?: ""
                         )
                     }?.sortedByDescending { it.serviceDate }
                         ?: emptyList()
@@ -292,6 +303,45 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                     Text("Recipient: ${invoice.recipientName}")
                     Text("Service date: ${invoice.serviceDate}")
                     Text("Status: ${invoice.status}")
+
+                    if (invoice.anomalyStatus == "FLAGGED_FOR_REVIEW") {
+
+                        Text(
+                            text = "⚠ Invoice flagged for review",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+
+                        Text(
+                            text = "The automated invoice checks identified " +
+                                    "something unusual. Review the details " +
+                                    "before approving this invoice."
+                        )
+
+                        invoice.anomalyReasons.forEach { reason ->
+                            Text("• $reason")
+                        }
+
+                        Text(
+                            text = "Detection method: Rule-based checks",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                    } else if (invoice.anomalyStatus == "NORMAL") {
+
+                        Text(
+                            text = "✓ No anomalies detected by the invoice checks",
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                    } else {
+
+                        Text(
+                            text = "Anomaly assessment unavailable",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
                     if (invoice.paymentState.isNotBlank()) {
                         Text(
                             "Payment: ${invoice.paymentState.replace("_", " ")}"

@@ -7,6 +7,7 @@ from firebase_admin import auth, firestore
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from firebase_setup import db
+from invoice_anomaly import analyze_invoice
 
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -173,6 +174,12 @@ def create_invoice(
     if total_cents > 1_000_000_000:
         raise HTTPException(400, "Invoice amount exceeds the limit")
 
+    # Analyze the invoice before saving it.
+    anomaly_result = analyze_invoice({
+        "items": invoice_items,
+        "totalCents": total_cents
+    })
+
     # One request ID identifies one submission attempt.
     # Retrying the same request cannot create another invoice.
     invoice_id = f"{caregiver_uid}_{payload.requestId.hex}"
@@ -190,6 +197,10 @@ def create_invoice(
         "totalCents": total_cents,
         "currency": "KES",
         "status": "PENDING_APPROVAL",
+        "anomalyStatus": anomaly_result["status"],
+        "isAnomaly": anomaly_result["isAnomaly"],
+        "anomalyReasons": anomaly_result["reasons"],
+        "anomalyDetectionMethod": anomaly_result["detectionMethod"],
         "createdAt": firestore.SERVER_TIMESTAMP
     }
 
@@ -212,7 +223,9 @@ def create_invoice(
         "invoiceId": invoice_id,
         "status": "PENDING_APPROVAL",
         "totalCents": total_cents,
-        "currency": "KES"
+        "currency": "KES",
+        "anomalyStatus": anomaly_result["status"],
+        "isAnomaly": anomaly_result["isAnomaly"]
     }
 
 # #Why is requestId included?
