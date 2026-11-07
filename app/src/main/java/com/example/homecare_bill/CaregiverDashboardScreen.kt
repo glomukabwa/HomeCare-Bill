@@ -18,7 +18,8 @@ fun CaregiverDashboardScreen(
     onLogout: () -> Unit,
     onViewInvitations: () -> Unit,
     onViewAssignments: () -> Unit,
-    onViewServices: () -> Unit
+    onViewServices: () -> Unit,
+    onViewInvoices: () -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -292,10 +293,19 @@ fun CaregiverDashboardScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "No invoices created yet.",
-                            modifier = Modifier.padding(16.dp)
-                        )
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("View invoices you've submitted and track their approval status.")
+
+                            Button(
+                                onClick = onViewInvoices,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("View My Invoices")
+                            }
+                        }
                     }
                 }
             }

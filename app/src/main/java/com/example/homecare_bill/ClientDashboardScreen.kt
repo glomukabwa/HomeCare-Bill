@@ -184,6 +184,10 @@ fun ClientDashboardScreen(
                         onViewInvoices()
                     } else {
                         selectedTab = tab
+                        //the else statement means: if the user clicks on any navigation tab other than "billing", update the active screen to match that clicked tab.
+                        //When a user taps a button in your navigation bar (like "Home", "Profile", or "Settings"),
+                        //the ClientBottomNavigation component detects that click and passes the name of the clicked tab into
+                        //the onTabSelected function. That incoming value is what tab represents.
                     }
                 }
             )

@@ -267,6 +267,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onViewServices = {
                                     navController.navigate("service_catalogue")
+                                },
+                                onViewInvoices = {
+                                    navController.navigate("caregiver_invoices")
                                 }
                             )
                         }
@@ -337,6 +340,14 @@ class MainActivity : ComponentActivity() {
 
                         composable("client_invoices") {
                             ClientInvoicesScreen(
+                                onBack = {
+                                    navController.popBackStack()
+                                }
+                            )
+                        }
+
+                        composable("caregiver_invoices") {
+                            CaregiverInvoicesScreen(
                                 onBack = {
                                     navController.popBackStack()
                                 }

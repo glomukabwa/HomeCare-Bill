@@ -19,11 +19,45 @@ private data class ClientInvoice(
     val serviceDate: String,
     val totalCents: Long,
     val status: String,
-    val lineItems: List<Map<String, Any>>
+    val lineItems: List<Map<String, Any>>,
+    //• List<...>: This is a standard ordered collection. It means you have multiple items stacked in a row.
+    //• Map<String, Any>: This is the blueprint for each individual item inside that list.
+    //	    • String: The keys (labels) must be text. For example: "product_name", "price", or "quantity".
+    //	    • Any: The values attached to those labels can be absolutely anything (numbers, text, booleans, or even other objects).
+    //Example of how it would look like:
+    //// A list containing two separate items (Maps)
+    //[
+    //  // Item 1 (Map)
+    //  {
+    //    "id" -> 101,          // Int (which counts as 'Any')
+    //    "name" -> "Laptop",    // String (which counts as 'Any')
+    //    "price" -> 999.99,     // Double (which counts as 'Any')
+    //    "isAvailable" -> true  // Boolean (which counts as 'Any')
+    //  },
+    //  // Item 2 (Map)
+    //  {
+    //    "id" -> 102,
+    //    "name" -> "Mouse",
+    //    "price" -> 25.00,
+    //    "isAvailable" -> false
+    //  }
+    //]
+
+    val paymentState: String = "",
+    val currentPaymentId: String = ""
 )
 
 private fun formatInvoiceMoney(cents: Long): String =
     String.format(Locale.US, "%,.2f", cents / 100.0)
+//The above function expects cents as an input parameter and it has to be a Long
+//The : String part means that the output of the function and then the part after it defines how the output should look like
+//• Locale.US: This forces the formatting to use American numbering rules, ensuring that a comma is used for thousands and a
+// period is used for decimals (e.g., 1,000.00), regardless of what country the user's phone is set to.
+//• "%,.2f": This is a special formatting blueprint rule:
+//	• %: Signals the start of a formatting instruction.
+//	• ,: Tells the system to add commas as thousands separators (e.g., turning 1000 into 1,000).
+//	• .2: Forces exactly two decimal places after the period, rounding if necessary (e.g., turning 5 into 5.00 or 5.678 into 5.68).
+//	• f: Stands for "floating-point number," telling the formatter to expect a decimal value.
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +76,26 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
         mutableStateOf<ClientInvoice?>(null)
     }
     var pendingAction by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var paymentInvoiceId by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var mpesaPhone by remember {
+        mutableStateOf("")
+    }
+
+    var paymentLoading by remember {
+        mutableStateOf(false)
+    }
+
+    var paymentMessage by remember {
+        mutableStateOf("")
+    }
+
+    var paymentId by remember {
         mutableStateOf<String?>(null)
     }
 
@@ -65,11 +119,27 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                     invoices = snapshot?.documents?.map { doc ->
                         val rawItems = doc.get("items") as? List<*>
                             ?: emptyList<Any>()
+                        //This line fetches the data and creates a safety net so the app doesn't crash if the data is missing or corrupted.
+                        //• as? List<*>: This is a safe cast. It asks: "Is this data actually a List of something?"
+                        //	• If yes, it gives you the list.
+                        //	• If no (e.g., the field is a string, a number, or completely missing/null), it returns null instead of crashing.In
+                        //      Firestore
+                        //• ?: emptyList<Any>(): This is the Elvis Operator. It says: "If the left side resulted in null, use this default
+                        // backup value instead." In this case, your backup is just an empty, harmless list ([]).
 
                         val parsedItems = rawItems.mapNotNull { raw ->
                             @Suppress("UNCHECKED_CAST")
                             raw as? Map<String, Any>
                         }
+                        //• rawItems.mapNotNull { ... }: This loops through every item in your raw list. It transforms the items, but automatically throws
+                        //          away any item that becomes null. This filters out bad or corrupted items seamlessly.
+                        //• @Suppress("UNCHECKED_CAST"): This is a note to the Kotlin compiler. Because of how Kotlin handles data at runtime, the app
+                        //         can't completely verify that every single value inside the map matches your types perfectly. This annotation simply says:
+                        //         "I know what I'm doing, don't show a yellow warning line under this code."
+                        //• raw as? Map<String, Any>: It looks at the individual item (raw) and asks: "Is this a Map with String keys?"
+                        //	    • If it is a valid map, it converts it to Map<String, Any>.
+                        //	    • If it is not (e.g., someone accidentally saved a random number inside your items list), it returns null. Because you are
+                        //	      using mapNotNull, that bad item is instantly dropped from the final results.
 
                         ClientInvoice(
                             id = doc.id,
@@ -83,7 +153,9 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                                 ?: 0L,
                             status = doc.getString("status")
                                 ?: "UNKNOWN",
-                            lineItems = parsedItems
+                            lineItems = parsedItems,
+                            paymentState = doc.getString("paymentState") ?: "",
+                            currentPaymentId = doc.getString("currentPaymentId") ?: ""
                         )
                     }?.sortedByDescending { it.serviceDate }
                         ?: emptyList()
@@ -99,6 +171,7 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
     fun updateInvoiceStatus(invoice: ClientInvoice, newStatus: String) {
         if (actionInProgress != null) return
         if (invoice.status != "PENDING_APPROVAL") return
+        //The above two if statements are returning nothing at all—they are performing an early exit from the function.
 
         actionInProgress = invoice.id
         errorMessage = ""
@@ -219,6 +292,28 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                     Text("Recipient: ${invoice.recipientName}")
                     Text("Service date: ${invoice.serviceDate}")
                     Text("Status: ${invoice.status}")
+                    if (invoice.paymentState.isNotBlank()) {
+                        Text(
+                            "Payment: ${invoice.paymentState.replace("_", " ")}"
+                        )
+                    }
+                    if (
+                        invoice.currentPaymentId.isNotBlank() &&
+                        invoice.paymentState in listOf(
+                            "INITIATING", "PENDING", "UNKNOWN"
+                        )
+                    ) {
+                        TextButton(
+                            onClick = {
+                                paymentInvoiceId = invoice.id
+                                paymentId = invoice.currentPaymentId
+                                paymentMessage = "Checking the existing payment attempt."
+                                selectedInvoice = null
+                            }
+                        ) {
+                            Text("Check Existing Payment")
+                        }
+                    }
 
                     HorizontalDivider()
 
@@ -256,18 +351,40 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                 }
             },
             confirmButton = {
-                if (invoice.status == "PENDING_APPROVAL") {
-                    Button(
-                        enabled = actionInProgress == null,
-                        onClick = {
-                            pendingAction = "APPROVED"
+                when {
+                    invoice.status == "PENDING_APPROVAL" -> {
+                        Button(
+                            enabled = actionInProgress == null,
+                            onClick = {
+                                pendingAction = "APPROVED"
+                            }
+                        ) {
+                            Text("Approve")
                         }
-                    ) {
-                        Text("Approve")
                     }
-                } else {
-                    TextButton(onClick = { selectedInvoice = null }) {
-                        Text("Close")
+
+                    invoice.status == "APPROVED" &&
+                            (invoice.paymentState.isBlank() ||
+                                    invoice.paymentState == "FAILED") -> {
+                        Button(
+                            onClick = {
+                                paymentInvoiceId = invoice.id
+                                paymentId = null
+                                paymentMessage = ""
+                                mpesaPhone = ""
+                                selectedInvoice = null
+                            }
+                        ) {
+                            Text("Pay with M-Pesa")
+                        }
+                    }
+
+                    else -> {
+                        TextButton(
+                            onClick = { selectedInvoice = null }
+                        ) {
+                            Text("Close")
+                        }
                     }
                 }
             },
@@ -339,4 +456,146 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
             )
         }
     }
+
+
+    paymentInvoiceId?.let { invoiceId ->
+
+        val invoice = invoices.find { it.id == invoiceId }
+
+        if (invoice != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    if (!paymentLoading) {
+                        paymentInvoiceId = null
+                    }
+                },
+                title = {
+                    Text("M-Pesa Sandbox Payment")
+                },
+                text = {
+                    Column(
+                        verticalArrangement =
+                            Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            "Amount: KES ${
+                                formatInvoiceMoney(invoice.totalCents)
+                            }"
+                        )
+
+                        Text(
+                            "This is a test payment. " +
+                                    "No real money will be transferred."
+                        )
+
+                        if (paymentId == null) {
+                            OutlinedTextField(
+                                value = mpesaPhone,
+                                onValueChange = { mpesaPhone = it },
+                                label = { Text("M-Pesa Phone Number") },
+                                placeholder = { Text("254XXXXXXXXX") },
+                                singleLine = true,
+                                enabled = !paymentLoading
+                            )
+                        }
+
+                        if (paymentLoading) {
+                            CircularProgressIndicator()
+                        }
+
+                        if (paymentMessage.isNotBlank()) {
+                            Text(paymentMessage)
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (paymentId == null) {
+                        Button(
+                            enabled = !paymentLoading &&
+                                    mpesaPhone.isNotBlank() &&
+                                    paymentMessage.isBlank(),
+                            onClick = {
+                                paymentLoading = true
+                                paymentMessage = ""
+
+                                MpesaApi.initiatePayment(
+                                    invoiceId = invoice.id,
+                                    phoneNumber = mpesaPhone
+                                ) { response, error ->
+                                    paymentLoading = false
+
+                                    if (error != null) {
+                                        paymentMessage =
+                                            "$error Do not retry if " +
+                                                    "the payment outcome is uncertain."
+                                    } else {
+                                        paymentId = response
+                                            ?.optString("paymentId")
+                                            ?.takeIf { it.isNotBlank() }
+
+                                        paymentMessage =
+                                            "Payment request submitted. " +
+                                                    "Awaiting confirmation."
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Send STK Push")
+                        }
+                    } else {
+                        Button(
+                            enabled = !paymentLoading,
+                            onClick = {
+                                val id = paymentId
+                                    ?: return@Button
+
+                                paymentLoading = true
+
+                                MpesaApi.checkPaymentStatus(id) {
+                                        response, error ->
+
+                                    paymentLoading = false
+
+                                    if (error != null) {
+                                        paymentMessage = error
+                                    } else {
+                                        val status = response
+                                            ?.optString("status")
+                                            ?: "UNKNOWN"
+
+                                        paymentMessage = when (status) {
+                                            "SUCCESS" ->
+                                                "Sandbox payment verified successfully."
+
+                                            "FAILED" ->
+                                                "Payment was unsuccessful."
+
+                                            "PENDING", "INITIATING" ->
+                                                "Payment is still processing."
+
+                                            else ->
+                                                "Payment outcome is not yet confirmed."
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Check Payment Status")
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !paymentLoading,
+                        onClick = {
+                            paymentInvoiceId = null
+                        }
+                    ) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+    }
+
 }

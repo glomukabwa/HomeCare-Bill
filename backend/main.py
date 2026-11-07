@@ -10,11 +10,23 @@ from typing import Literal
 from model_loader import models, metadata
 from feature_engineering import prepare_features
 from invoice_routes import router as invoice_router
+from payment_routes import router as payment_router
 
+from pathlib import Path
+from dotenv import load_dotenv
 
-app = FastAPI()
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+import os
+
+app = FastAPI(
+    docs_url="/docs" if os.getenv("ENABLE_API_DOCS") == "1" else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if os.getenv("ENABLE_API_DOCS") == "1" else None
+)
 
 app.include_router(invoice_router)
+app.include_router(payment_router)
 
 
 class Transaction(BaseModel):
