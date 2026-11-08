@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
                                     val destination = when (role) {
                                         "CLIENT" -> "client_dashboard"
                                         "CAREGIVER" -> "caregiver_dashboard"
+                                        "ADMIN" -> "admin_dashboard"
                                         else -> "login"
                                     }
 
@@ -106,6 +107,7 @@ class MainActivity : ComponentActivity() {
                                     val destination = when (role){
                                         "CLIENT" -> "client_dashboard"
                                         "CAREGIVER" -> "caregiver_dashboard"
+                                        "ADMIN" -> "admin_dashboard"
                                         else -> "login"
                                     }
 
@@ -344,6 +346,21 @@ class MainActivity : ComponentActivity() {
 
                         composable("caregiver_invoices") {
                             CaregiverInvoicesScreen()
+                        }
+
+                        composable("admin_dashboard") {
+                            AdminDashboardScreen(
+                                onLogout = {
+                                    FirebaseAuth.getInstance().signOut()
+
+                                    navController.navigate("login") {
+                                        popUpTo("admin_dashboard") {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
+                                }
+                            )
                         }
 
                     }

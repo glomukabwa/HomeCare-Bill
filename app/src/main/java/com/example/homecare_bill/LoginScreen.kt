@@ -225,7 +225,7 @@ fun LoginScreen(
                                                             if(document.exists()){
                                                                 val role = document.getString("role")
 
-                                                                if(role == "CLIENT" || role == "CAREGIVER"){
+                                                                if(role == "CLIENT" || role == "CAREGIVER" || role == "ADMIN"){
                                                                     Toast.makeText(
                                                                         context,//This provides access to the Android environment needed for the Toast operation.
                                                                         "Login successful!",
