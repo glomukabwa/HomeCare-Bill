@@ -52,6 +52,30 @@ fun AdminDashboardScreen(
         mutableStateOf("")
     }
 
+    var selectedFilter by remember {
+        mutableStateOf("NEEDS_REVIEW")
+    }
+
+    val needsReviewCount = invoices.count {
+        it.adminReviewStatus != "REVIEWED"
+    }
+
+    val reviewedCount = invoices.count {
+        it.adminReviewStatus == "REVIEWED"
+    }
+
+    val filteredInvoices = when (selectedFilter) {
+        "NEEDS_REVIEW" -> invoices.filter {
+            it.adminReviewStatus != "REVIEWED"
+        }
+
+        "REVIEWED" -> invoices.filter {
+            it.adminReviewStatus == "REVIEWED"
+        }
+
+        else -> invoices
+    }
+
     DisposableEffect(db) {
         val listener: ListenerRegistration = db.collection("invoices")
             .whereEqualTo("anomalyStatus", "FLAGGED_FOR_REVIEW")
@@ -73,7 +97,7 @@ fun AdminDashboardScreen(
                         status = doc.getString("status") ?: "UNKNOWN",
                         clientId = doc.getString("clientId") ?: "",
                         caregiverId = doc.getString("caregiverId") ?: "",
-                        lineItems = (doc.get("lineItems") as? List<*>)
+                        lineItems = (doc.get("items") as? List<*>)
                             ?.mapNotNull { item ->
                                 (item as? Map<*, *>)?.entries
                                     ?.filter { it.key is String }
@@ -129,14 +153,46 @@ fun AdminDashboardScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Flagged Invoices",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = "${invoices.size}",
-                        style = MaterialTheme.typography.headlineLarge
-                    )
+                                        Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Flagged invoices",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+
+                                Text(
+                                    text = "${invoices.size}",
+                                    style = MaterialTheme.typography.headlineLarge
+                                )
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Needs review",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+
+                                Text(
+                                    text = "$needsReviewCount",
+                                    style = MaterialTheme.typography.headlineLarge
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -144,6 +200,29 @@ fun AdminDashboardScreen(
                 text = "Invoices requiring attention",
                 style = MaterialTheme.typography.titleMedium
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = selectedFilter == "NEEDS_REVIEW",
+                    onClick = { selectedFilter = "NEEDS_REVIEW" },
+                    label = { Text("Needs Review") }
+                )
+
+                FilterChip(
+                    selected = selectedFilter == "REVIEWED",
+                    onClick = { selectedFilter = "REVIEWED" },
+                    label = { Text("Reviewed") }
+                )
+
+                FilterChip(
+                    selected = selectedFilter == "ALL",
+                    onClick = { selectedFilter = "ALL" },
+                    label = { Text("All") }
+                )
+            }
 
             when {
                 isLoading -> {
@@ -157,9 +236,13 @@ fun AdminDashboardScreen(
                     )
                 }
 
-                invoices.isEmpty() -> {
+                filteredInvoices.isEmpty() -> {
                     Text(
-                        text = "No flagged invoices found.",
+                        text = when (selectedFilter) {
+                            "NEEDS_REVIEW" -> "No invoices awaiting review."
+                            "REVIEWED" -> "No reviewed invoices yet."
+                            else -> "No flagged invoices found."
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -169,7 +252,7 @@ fun AdminDashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(invoices, key = { it.id }) { invoice ->
+                        items(filteredInvoices, key = { it.id }) { invoice ->
 
                             Card(
                                 modifier = Modifier.fillMaxWidth()
@@ -316,18 +399,85 @@ fun AdminDashboardScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
 
-                    invoice.lineItems.forEachIndexed { index, item ->
+                    invoice.lineItems.forEach { item ->
 
-                        Text(
-                            text = "Service ${index + 1}",
-                            style = MaterialTheme.typography.titleSmall
-                        )
+                        val serviceName =
+                            item["serviceName"] as? String ?: "Unknown service"
 
-                        item.forEach { (key, value) ->
-                            Text(
-                                text = "$key: $value",
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                        val billingUnit =
+                            item["billingUnit"] as? String ?: ""
+
+                        val quantity =
+                            (item["quantity"] as? Number)?.toDouble() ?: 0.0
+
+                        val unitRateCents =
+                            (item["unitRateCents"] as? Number)?.toLong() ?: 0L
+
+                        val lineTotalCents =
+                            (item["lineTotalCents"] as? Number)?.toLong() ?: 0L
+
+                        val quantityDescription = when (billingUnit) {
+
+                            "HOUR" -> {
+                                val hours = quantity / 60.0
+
+                                String.format(
+                                    Locale.US,
+                                    "%g hours",
+                                    hours
+                                )
+                            }
+
+                            "SESSION" -> {
+                                "${quantity.toInt()} sessions"
+                            }
+
+                            else -> {
+                                "Quantity: $quantity"
+                            }
+                        }
+
+                        val rateDescription = when (billingUnit) {
+                            "HOUR" -> "Rate per hour"
+                            "SESSION" -> "Rate per session"
+                            else -> "Unit rate"
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+
+                                Text(
+                                    text = serviceName,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+
+                                Text(
+                                    text = "Duration / Quantity: $quantityDescription"
+                                )
+
+                                Text(
+                                    text = String.format(
+                                        Locale.US,
+                                        "%s: KES %,.2f",
+                                        rateDescription,
+                                        unitRateCents / 100.0
+                                    )
+                                )
+
+                                Text(
+                                    text = String.format(
+                                        Locale.US,
+                                        "Service total: KES %,.2f",
+                                        lineTotalCents / 100.0
+                                    ),
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                            }
                         }
                     }
 
@@ -345,58 +495,31 @@ fun AdminDashboardScreen(
                     HorizontalDivider()
 
                     Text(
-                        text = "AI Anomaly Analysis",
+                        text = "Automated Invoice Review",
                         style = MaterialTheme.typography.titleMedium
                     )
 
                     Text(
-                        text = "Flagged for review",
-                        color = MaterialTheme.colorScheme.error
+                        text = "⚠ Unusual billing pattern detected",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.titleSmall
                     )
 
-                    val detectionMethod = when (
-                        invoice.anomalyDetectionMethod
-                    ) {
-                        "ISOLATION_FOREST" -> "Isolation Forest"
-                        "RULE_BASED" -> "Rule-based checks"
-                        else -> "Unavailable"
-                    }
-
-                    Text("Detection method: $detectionMethod")
-
-                    invoice.mlAnomalyScore?.let { score ->
-                        Text(
-                            text = "Anomaly score: ${
-                                String.format(Locale.US, "%+.6f", score)
-                            }"
-                        )
-                    }
-
-                    if (invoice.mlModelVersion.isNotBlank()) {
-                        Text(
-                            text = "Model version: ${invoice.mlModelVersion}"
-                        )
-                    }
+                    Text(
+                        text = "This invoice has been flagged for review because the billing details differ from the usual patterns.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
 
                     Text(
-                        text = "The anomaly score indicates how unusual " +
-                                "the invoice is relative to the model's " +
-                                "training data. It is not a fraud probability.",
+                        text = "Please examine its details to determine whether further investigation is necessary.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = "This alert does not confirm overcharging or fraud.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    if (invoice.anomalyReasons.isNotEmpty()) {
-
-                        Text(
-                            text = "Detection notes",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-
-                        invoice.anomalyReasons.forEach { reason ->
-                            Text("• $reason")
-                        }
-                    }
                 }
             },
 
