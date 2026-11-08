@@ -195,6 +195,11 @@ def verify_and_finalize(payment_id: str):
             "description": "Daraja verification unavailable."
         }
 
+    # Daraja can return 4999 while a transaction
+    # is still being processed.
+    if str(result.get("resultCode")) == "4999":
+        result["status"] = "PENDING"
+
     if result["status"] in FINAL_STATES:
         final_status = finalize_payment(payment_id, result)
         result["status"] = final_status
@@ -240,6 +245,68 @@ def initiate_payment(
             raise HTTPException(
                 409, "Payment already active or completed."
             )
+
+        # Protect against an earlier processing response
+        # that was incorrectly classified as FAILED.
+        previous_payment_id = invoice.get("currentPaymentId")
+
+        if previous_payment_id:
+            previous_payment_ref = db.collection(
+                "payments"
+            ).document(previous_payment_id)
+
+            previous_payment = previous_payment_ref.get(
+                transaction=tx
+            )
+
+            if not previous_payment.exists:
+                raise HTTPException(
+                    409,
+                    "Previous payment record is missing. "
+                    "Payment requires review."
+                )
+
+            previous_data = previous_payment.to_dict()
+
+            if (
+                previous_data.get("invoiceId") != payload.invoiceId
+                or previous_data.get("clientId") != client_uid
+            ):
+                raise HTTPException(
+                    409,
+                    "Previous payment does not match this invoice."
+                )
+
+            previous_status = previous_data.get("status")
+            previous_code = previous_data.get("resultCode")
+
+            if previous_status != "FAILED":
+                raise HTTPException(
+                    409,
+                    "Previous payment is not confirmed as failed."
+                )
+
+            # ResultCode 4999 means the earlier query
+            # did not establish a final payment outcome.
+            if str(previous_code) == "4999":
+                raise HTTPException(
+                    409,
+                    "Previous payment is still unconfirmed. "
+                    "Do not initiate another payment."
+                )
+
+            # Require an explicitly recognized failure code.
+            confirmed_failure_codes = {1032, 1037}
+
+            if (
+                not isinstance(previous_code, int)
+                or previous_code not in confirmed_failure_codes
+            ):
+                raise HTTPException(
+                    409,
+                    "Previous payment failure requires verification "
+                    "before retrying."
+                )
 
         total_cents = invoice.get("totalCents")
 
