@@ -4,6 +4,8 @@ package com.example.homecare_bill
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -48,7 +50,9 @@ private data class ClientInvoice(
     val anomalyStatus: String = "",
     val isAnomaly: Boolean = false,
     val anomalyReasons: List<String> = emptyList(),
-    val anomalyDetectionMethod: String = ""
+    val anomalyDetectionMethod: String = "",
+    val mlAnomalyScore: Double? = null,//We're using Double? because older invoices might not have an ML anomaly score.
+    val mlModelVersion: String = ""
 )
 
 private fun formatInvoiceMoney(cents: Long): String =
@@ -65,7 +69,9 @@ private fun formatInvoiceMoney(cents: Long): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClientInvoicesScreen(onBack: () -> Unit) {
+fun ClientInvoicesScreen(
+    modifier: Modifier = Modifier
+) {
 
     val db = remember { FirebaseFirestore.getInstance() }
     val userId = FirebaseAuth.getInstance().currentUser?.uid
@@ -166,7 +172,9 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
                                 ?.filterIsInstance<String>()
                                 ?: emptyList(),
                             anomalyDetectionMethod =
-                                doc.getString("anomalyDetectionMethod") ?: ""
+                                doc.getString("anomalyDetectionMethod") ?: "",
+                            mlAnomalyScore = doc.getDouble("mlAnomalyScore"),
+                            mlModelVersion = doc.getString("mlModelVersion") ?: ""
                         )
                     }?.sortedByDescending { it.serviceDate }
                         ?: emptyList()
@@ -204,14 +212,10 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("My Invoices") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
-                    }
-                }
+                title = { Text("My Invoices") }
             )
         }
     ) { padding ->
@@ -298,6 +302,7 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
             },
             text = {
                 Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text("Recipient: ${invoice.recipientName}")
@@ -306,39 +311,18 @@ fun ClientInvoicesScreen(onBack: () -> Unit) {
 
                     if (invoice.anomalyStatus == "FLAGGED_FOR_REVIEW") {
 
+                        HorizontalDivider()
+
                         Text(
-                            text = "⚠ Invoice flagged for review",
+                            text = "⚠ Please review this invoice",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.titleSmall
                         )
 
                         Text(
-                            text = "The automated invoice checks identified " +
-                                    "something unusual. Review the details " +
-                                    "before approving this invoice."
-                        )
-
-                        invoice.anomalyReasons.forEach { reason ->
-                            Text("• $reason")
-                        }
-
-                        Text(
-                            text = "Detection method: Rule-based checks",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-
-                    } else if (invoice.anomalyStatus == "NORMAL") {
-
-                        Text(
-                            text = "✓ No anomalies detected by the invoice checks",
-                            color = MaterialTheme.colorScheme.primary
-                        )
-
-                    } else {
-
-                        Text(
-                            text = "Anomaly assessment unavailable",
-                            style = MaterialTheme.typography.bodySmall
+                            text = "Some charges on this invoice appear unusual. " +
+                                    "Please check the services and amounts carefully " +
+                                    "before approving."
                         )
                     }
 

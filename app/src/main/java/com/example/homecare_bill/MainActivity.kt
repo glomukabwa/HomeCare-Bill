@@ -339,19 +339,11 @@ class MainActivity : ComponentActivity() {
                         }
 
                         composable("client_invoices") {
-                            ClientInvoicesScreen(
-                                onBack = {
-                                    navController.popBackStack()
-                                }
-                            )
+                            ClientInvoicesScreen()
                         }
 
                         composable("caregiver_invoices") {
-                            CaregiverInvoicesScreen(
-                                onBack = {
-                                    navController.popBackStack()
-                                }
-                            )
+                            CaregiverInvoicesScreen()
                         }
 
                     }

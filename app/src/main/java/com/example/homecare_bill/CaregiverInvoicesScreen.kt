@@ -4,6 +4,8 @@ package com.example.homecare_bill
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,7 +21,8 @@ private data class CaregiverInvoice(
     val serviceDate: String,
     val totalCents: Long,
     val status: String,
-    val lineItems: List<Map<String, Any>>
+    val lineItems: List<Map<String, Any>>,
+    val anomalyStatus: String = ""
 )
 
 private fun formatCaregiverInvoiceMoney(cents: Long): String =
@@ -27,7 +30,7 @@ private fun formatCaregiverInvoiceMoney(cents: Long): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CaregiverInvoicesScreen(onBack: () -> Unit) {
+fun CaregiverInvoicesScreen() {
 
     val db = remember { FirebaseFirestore.getInstance() }
     val caregiverId = FirebaseAuth.getInstance().currentUser?.uid
@@ -80,7 +83,8 @@ fun CaregiverInvoicesScreen(onBack: () -> Unit) {
                                 ?: 0L,
                             status = doc.getString("status")
                                 ?: "UNKNOWN",
-                            lineItems = parsedItems
+                            lineItems = parsedItems,
+                            anomalyStatus = doc.getString("anomalyStatus") ?: ""
                         )
                     }?.sortedByDescending { it.serviceDate }
                         ?: emptyList()
@@ -95,12 +99,7 @@ fun CaregiverInvoicesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("My Invoices") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
-                    }
-                }
+                title = { Text("My Invoices") }
             )
         }
     ) { padding ->
@@ -190,13 +189,26 @@ fun CaregiverInvoicesScreen(onBack: () -> Unit) {
                 title = { Text("Invoice Details") },
                 text = {
                     Column(
-                        verticalArrangement =
-                            Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text("Recipient: ${invoice.recipientName}")
                         Text("Client: ${invoice.clientName}")
                         Text("Service date: ${invoice.serviceDate}")
                         Text("Status: ${invoice.status.replace("_", " ")}")
+
+                        if (invoice.anomalyStatus == "FLAGGED_FOR_REVIEW") {
+                            Text(
+                                text = "⚠ Invoice requires review",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.titleSmall
+                            )
+
+                            Text(
+                                text = "Some charges on this invoice appear unusual. " +
+                                        "Please check the services and amounts for accuracy."
+                            )
+                        }
 
                         HorizontalDivider()
 

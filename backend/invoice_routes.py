@@ -7,7 +7,7 @@ from firebase_admin import auth, firestore
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from firebase_setup import db
-from invoice_anomaly import analyze_invoice
+from invoice_ml_predictor import analyze_invoice_ml
 
 
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
@@ -174,8 +174,8 @@ def create_invoice(
     if total_cents > 1_000_000_000:
         raise HTTPException(400, "Invoice amount exceeds the limit")
 
-    # Analyze the invoice before saving it.
-    anomaly_result = analyze_invoice({
+    # Analyze the invoice using the trained Isolation Forest model.
+    ml_result = analyze_invoice_ml({
         "items": invoice_items,
         "totalCents": total_cents
     })
@@ -197,11 +197,22 @@ def create_invoice(
         "totalCents": total_cents,
         "currency": "KES",
         "status": "PENDING_APPROVAL",
-        "anomalyStatus": anomaly_result["status"],
-        "isAnomaly": anomaly_result["isAnomaly"],
-        "anomalyReasons": anomaly_result["reasons"],
-        "anomalyDetectionMethod": anomaly_result["detectionMethod"],
-        "createdAt": firestore.SERVER_TIMESTAMP
+
+        # Primary anomaly detection fields (used by Android).
+        "anomalyStatus": ml_result["status"],
+        "isAnomaly": ml_result["isAnomaly"],
+        "anomalyReasons": (
+            ["Unusual billing pattern detected by AI."]
+            if ml_result["isAnomaly"]
+            else []
+        ),
+        "anomalyDetectionMethod": ml_result["detectionMethod"],
+
+        # Additional machine-learning information.
+        "mlAnomalyScore": ml_result["anomalyScore"],
+        "mlModelVersion": ml_result["modelVersion"],
+
+        "createdAt": firestore.SERVER_TIMESTAMP,
     }
 
     try:
@@ -224,8 +235,11 @@ def create_invoice(
         "status": "PENDING_APPROVAL",
         "totalCents": total_cents,
         "currency": "KES",
-        "anomalyStatus": anomaly_result["status"],
-        "isAnomaly": anomaly_result["isAnomaly"]
+        "anomalyStatus": ml_result["status"],
+        "isAnomaly": ml_result["isAnomaly"],
+        "anomalyDetectionMethod": ml_result["detectionMethod"],
+        "mlAnomalyScore": ml_result["anomalyScore"],
+        "mlModelVersion": ml_result["modelVersion"]
     }
 
 # #Why is requestId included?

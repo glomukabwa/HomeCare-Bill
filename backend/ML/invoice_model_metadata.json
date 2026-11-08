@@ -1,0 +1,21 @@
+{
+    "modelName": "HomeCare Bill Invoice Isolation Forest",
+    "modelVersion": "1.0",
+    "algorithm": "IsolationForest",
+    "trainingSamples": 4000,
+    "testingSamples": 1000,
+    "features": [
+        "total_amount_kes",
+        "item_count",
+        "distinct_services",
+        "total_duration_minutes",
+        "total_sessions",
+        "max_line_amount_kes",
+        "average_line_amount_kes"
+    ],
+    "contamination": 0.05,
+    "randomState": 42,
+    "trainingAnomalyRate": 0.05,
+    "testingAnomalyRate": 0.057,
+    "datasetType": "Synthetic home-care invoices"
+}
