@@ -23,6 +23,8 @@ private data class AdminInvoice(
     val status: String,
     val clientId: String,
     val caregiverId: String,
+    val clientName: String,
+    val caregiverName: String,
     val lineItems: List<Map<String, Any>>,
     val anomalyReasons: List<String>,
     val anomalyDetectionMethod: String,
@@ -97,6 +99,8 @@ fun AdminDashboardScreen(
                         status = doc.getString("status") ?: "UNKNOWN",
                         clientId = doc.getString("clientId") ?: "",
                         caregiverId = doc.getString("caregiverId") ?: "",
+                        clientName = doc.getString("clientName") ?: "",
+                        caregiverName = doc.getString("caregiverName") ?: "",
                         lineItems = (doc.get("items") as? List<*>)
                             ?.mapNotNull { item ->
                                 (item as? Map<*, *>)?.entries
@@ -388,9 +392,39 @@ fun AdminDashboardScreen(
                         )
                     }
 
-                    Text("Recipient: ${invoice.recipientName}")
+                    Text(
+                        text = "People Involved",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = "Caregiver: ${
+                            invoice.caregiverName.ifBlank { "Not available" }
+                        }"
+                    )
+
+                    Text(
+                        text = "Client: ${
+                            invoice.clientName.ifBlank { "Not available" }
+                        }"
+                    )
+
+                    Text(
+                        text = "Care recipient: ${invoice.recipientName}"
+                    )
+
+                    HorizontalDivider()
+
+                    Text(
+                        text = "Invoice Information",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
                     Text("Service date: ${invoice.serviceDate}")
-                    Text("Invoice status: ${invoice.status.replace("_", " ")}")
+
+                    Text(
+                        text = "Invoice status: ${invoice.status.replace("_", " ")}"
+                    )
 
                     HorizontalDivider()
 
@@ -506,12 +540,7 @@ fun AdminDashboardScreen(
                     )
 
                     Text(
-                        text = "This invoice has been flagged for review because the billing details differ from the usual patterns.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    Text(
-                        text = "Please examine its details to determine whether further investigation is necessary.",
+                        text = "Please examine this invoice's details to determine whether further investigation is necessary.",
                         style = MaterialTheme.typography.bodyMedium
                     )
 

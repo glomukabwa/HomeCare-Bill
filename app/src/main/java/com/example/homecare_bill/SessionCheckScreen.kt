@@ -80,7 +80,7 @@ fun SessionCheckScreen(
 
                                             val role = document.getString("role")
 
-                                            if (role == "CLIENT" || role == "CAREGIVER") {
+                                            if (role == "CLIENT" || role == "CAREGIVER" || role == "ADMIN") {
 
                                                 onValidSession(role)
 

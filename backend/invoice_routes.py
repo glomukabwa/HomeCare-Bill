@@ -70,6 +70,27 @@ def create_invoice(
         authorization
     )
 
+    # Retrieve the verified caregiver's display name.
+    caregiver_snapshot = db.collection("users").document(
+        caregiver_uid
+    ).get()
+
+    if not caregiver_snapshot.exists:
+        raise HTTPException(403, "Caregiver profile not found")
+
+    caregiver_profile = caregiver_snapshot.to_dict()
+
+    first_name = caregiver_profile.get("firstName", "").strip()
+    last_name = caregiver_profile.get("lastName", "").strip()
+
+    caregiver_name = f"{first_name} {last_name}".strip()
+
+    if not caregiver_name:
+        raise HTTPException(
+            400,
+            "Caregiver profile must contain a name"
+        )
+
     today = datetime.now(timezone.utc).date()
 
     if payload.serviceDate > today:
@@ -189,6 +210,7 @@ def create_invoice(
         "assignmentId": payload.assignmentId,
         "clientId": client_id,
         "caregiverId": caregiver_uid,
+        "caregiverName": caregiver_name,
         "recipientId": recipient_id,
         "clientName": assignment.get("clientName", ""),
         "recipientName": assignment.get("recipientName", ""),
