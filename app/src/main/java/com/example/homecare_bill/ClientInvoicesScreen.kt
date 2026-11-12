@@ -1,6 +1,7 @@
 
 package com.example.homecare_bill
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -81,6 +82,7 @@ fun ClientInvoicesScreen(
     }
     var loading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("ALL") }
     var actionInProgress by remember { mutableStateOf<String?>(null) }
     var selectedInvoice by remember {
         mutableStateOf<ClientInvoice?>(null)
@@ -211,6 +213,16 @@ fun ClientInvoicesScreen(
             }
     }
 
+    val filteredInvoices = invoices.filter { invoice ->
+        when (selectedFilter) {
+            "PENDING" -> invoice.status == "PENDING_APPROVAL"
+            "APPROVED" -> invoice.status == "APPROVED"
+            "PAID" -> invoice.status == "PAID"
+            "DISPUTED" -> invoice.status == "DISPUTED"
+            else -> true
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -234,6 +246,31 @@ fun ClientInvoicesScreen(
                 Spacer(Modifier.height(12.dp))
             }
 
+            val filters = listOf(
+                "ALL" to "All",
+                "PENDING" to "Pending",
+                "APPROVED" to "Approved",
+                "PAID" to "Paid",
+                "DISPUTED" to "Disputed"
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filters.forEach { (value, label) ->
+                    FilterChip(
+                        selected = selectedFilter == value,
+                        onClick = { selectedFilter = value },
+                        label = { Text(label) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             when {
                 loading -> CircularProgressIndicator()
 
@@ -241,10 +278,14 @@ fun ClientInvoicesScreen(
                     Text("You have no invoices yet.")
                 }
 
+                filteredInvoices.isEmpty() -> {
+                    Text("No invoices found for this status.")
+                }
+
                 else -> LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(invoices, key = { it.id }) { invoice ->
+                    items(filteredInvoices, key = { it.id }) { invoice ->
 
                         Card(modifier = Modifier.fillMaxWidth()) {
                             Column(
