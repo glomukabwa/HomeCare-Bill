@@ -55,6 +55,14 @@ data class CareRecipient(//A data class is a Kotlin class primarily designed to 
     val relationship: String = ""
 )
 
+private data class RecentInvoice(
+    val id: String,
+    val recipientName: String,
+    val serviceDate: String,
+    val totalCents: Long,
+    val status: String
+)
+
 @Composable
 fun ClientDashboardScreen(
     onLogout: () -> Unit,
@@ -96,6 +104,18 @@ fun ClientDashboardScreen(
     }
 
     var alertsError by remember {
+        mutableStateOf("")
+    }
+
+    var recentInvoices by remember {
+        mutableStateOf<List<RecentInvoice>>(emptyList())
+    }
+
+    var billingLoading by remember {
+        mutableStateOf(true)
+    }
+
+    var billingError by remember {
         mutableStateOf("")
     }
 
@@ -200,8 +220,9 @@ fun ClientDashboardScreen(
 
         if (uid == null) {
             alertsLoading = false
+            billingLoading = false
             alertsError = "Please sign in again."
-
+            billingError = "Please sign in again."
             onDispose { }
         } else {
 
@@ -210,13 +231,16 @@ fun ClientDashboardScreen(
                 .addSnapshotListener { snapshot, exception ->
 
                     alertsLoading = false
+                    billingLoading = false
 
                     if (exception != null) {
                         alertsError = "Unable to load billing alerts."
+                        billingError = "Unable to load recent invoices."
                         return@addSnapshotListener
                     }
 
                     alertsError = ""
+                    billingError = ""
 
                     val flaggedInvoices = snapshot?.documents
                         ?.filter { document ->
@@ -230,6 +254,24 @@ fun ClientDashboardScreen(
                     pendingFlaggedCount = flaggedInvoices.count { document ->
                         document.getString("status") == "PENDING_APPROVAL"
                     }
+
+                    recentInvoices = snapshot?.documents
+                        ?.map { document ->
+                            RecentInvoice(
+                                id = document.id,
+                                recipientName = document.getString("recipientName")
+                                    ?: "Care recipient",
+                                serviceDate = document.getString("serviceDate")
+                                    ?: "",
+                                totalCents = document.getLong("totalCents")
+                                    ?: 0L,
+                                status = document.getString("status")
+                                    ?: "UNKNOWN"
+                            )
+                        }
+                        ?.sortedByDescending { it.serviceDate }
+                        ?.take(3)
+                        ?: emptyList()
                 }
 
             onDispose {
@@ -446,39 +488,125 @@ fun ClientDashboardScreen(
                         }
                     }
 
-                    //RECENT BILLING SECTION
+
+                    // DYNAMIC RECENT BILLING SECTION
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "Recent Billing",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
 
-                        Card(
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ReceiptLong,
-                                    contentDescription = null
-                                )
 
+                            Text(
+                                text = "Recent Billing",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            if (recentInvoices.isNotEmpty()) {
+                                TextButton(
+                                    onClick = {
+                                        billingInitialFilter = "ALL"
+                                        targetInvoiceId = null
+                                        selectedTab = "billing"
+                                    }
+                                ) {
+                                    Text("View All")
+                                }
+                            }
+                        }
+
+                        when {
+                            billingLoading -> {
+                                CircularProgressIndicator()
+                            }
+
+                            billingError.isNotBlank() -> {
                                 Text(
-                                    text = "Your invoices will appear here",
-                                    style = MaterialTheme.typography.bodyMedium
+                                    text = billingError,
+                                    color = MaterialTheme.colorScheme.error
                                 )
+                            }
+
+                            recentInvoices.isEmpty() -> {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ReceiptLong,
+                                            contentDescription = null
+                                        )
+
+                                        Text("No invoices available yet.")
+                                    }
+                                }
+                            }
+
+                            else -> {
+                                recentInvoices.forEach { invoice ->
+
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                targetInvoiceId = invoice.id
+                                                billingInitialFilter = "ALL"
+                                                selectedTab = "billing"
+                                            },
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+
+                                            Text(
+                                                text = invoice.recipientName,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+
+                                            Text(
+                                                text = "Service date: ${invoice.serviceDate}",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+
+                                            Text(
+                                                text = "Amount: KES ${
+                                                    String.format(
+                                                        java.util.Locale.US,
+                                                        "%,.2f",
+                                                        invoice.totalCents / 100.0
+                                                    )
+                                                }",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+
+                                            Text(
+                                                text = "Status: ${
+                                                    invoice.status.replace("_", " ")
+                                                }",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    //ALERTS SECTION
+
                     // DYNAMIC ALERTS SECTION
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp)

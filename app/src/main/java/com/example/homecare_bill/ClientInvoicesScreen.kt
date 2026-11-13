@@ -220,9 +220,18 @@ fun ClientInvoicesScreen(
             .document(invoice.id)
             .update("status", newStatus)
             .addOnSuccessListener {
+
                 actionInProgress = null
                 pendingAction = null
                 selectedInvoice = null
+
+                if (newStatus == "APPROVED") {
+                    paymentInvoiceId = invoice.id
+                    paymentId = null
+                    paymentMessage = ""
+                    mpesaPhone = ""
+                    paymentLoading = false
+                }
             }
             .addOnFailureListener { exception ->
                 actionInProgress = null
@@ -251,7 +260,6 @@ fun ClientInvoicesScreen(
     ) {
         if (
             targetInvoiceId != null &&
-            selectedFilter == "FLAGGED" &&
             !loading
         ) {
             val index = filteredInvoices.indexOfFirst {
@@ -608,7 +616,7 @@ fun ClientInvoicesScreen(
                     }
                 },
                 title = {
-                    Text("M-Pesa Sandbox Payment")
+                    Text("Pay Invoice with M-Pesa")
                 },
                 text = {
                     Column(
