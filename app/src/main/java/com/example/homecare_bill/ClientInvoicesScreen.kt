@@ -71,7 +71,8 @@ private fun formatInvoiceMoney(cents: Long): String =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClientInvoicesScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initialFilter: String = "ALL"
 ) {
 
     val db = remember { FirebaseFirestore.getInstance() }
@@ -82,11 +83,19 @@ fun ClientInvoicesScreen(
     }
     var loading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("ALL") }
-    var actionInProgress by remember { mutableStateOf<String?>(null) }
-    var selectedInvoice by remember {
-        mutableStateOf<ClientInvoice?>(null)
+    var selectedFilter by remember(initialFilter) { mutableStateOf(initialFilter) }
+    val filterScrollState = rememberScrollState()
+
+    LaunchedEffect(initialFilter, filterScrollState.maxValue) {
+        if (initialFilter == "FLAGGED") {
+            filterScrollState.animateScrollTo(filterScrollState.maxValue)
+        } else {
+            filterScrollState.scrollTo(0)
+        }
     }
+
+    var actionInProgress by remember { mutableStateOf<String?>(null) }
+    var selectedInvoice by remember(initialFilter) {mutableStateOf<ClientInvoice?>(null) }
     var pendingAction by remember {
         mutableStateOf<String?>(null)
     }
@@ -219,6 +228,7 @@ fun ClientInvoicesScreen(
             "APPROVED" -> invoice.status == "APPROVED"
             "PAID" -> invoice.status == "PAID"
             "DISPUTED" -> invoice.status == "DISPUTED"
+            "FLAGGED" -> invoice.anomalyStatus == "FLAGGED_FOR_REVIEW"
             else -> true
         }
     }
@@ -251,13 +261,14 @@ fun ClientInvoicesScreen(
                 "PENDING" to "Pending",
                 "APPROVED" to "Approved",
                 "PAID" to "Paid",
-                "DISPUTED" to "Disputed"
+                "DISPUTED" to "Disputed",
+                "FLAGGED" to "Flagged"
             )
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                    .horizontalScroll(filterScrollState),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 filters.forEach { (value, label) ->
@@ -559,8 +570,7 @@ fun ClientInvoicesScreen(
                         )
 
                         Text(
-                            "This is a test payment. " +
-                                    "No real money will be transferred."
+                            "Please verify the amount before proceeding with the payment."
                         )
 
                         if (paymentId == null) {

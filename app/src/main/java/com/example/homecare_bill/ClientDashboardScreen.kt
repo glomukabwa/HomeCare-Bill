@@ -33,6 +33,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -68,6 +69,7 @@ fun ClientDashboardScreen(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf("home") }
+    var billingInitialFilter by remember { mutableStateOf("ALL") }
 
     var careRecipients by remember { mutableStateOf<List<CareRecipient>>(emptyList()) }
     //Explanation:
@@ -79,6 +81,22 @@ fun ClientDashboardScreen(
     
     var recipientsLoading by remember { mutableStateOf(true) }
     var recipientsError by remember { mutableStateOf("") }
+
+    var flaggedInvoiceCount by remember {
+        mutableStateOf(0)
+    }
+
+    var pendingFlaggedCount by remember {
+        mutableStateOf(0)
+    }
+
+    var alertsLoading by remember {
+        mutableStateOf(true)
+    }
+
+    var alertsError by remember {
+        mutableStateOf("")
+    }
 
     LaunchedEffect(Unit) {
         //LaunchedEffect() means: Run this work when the screen appears, and only restart it if the key I gave you changes.
@@ -175,11 +193,60 @@ fun ClientDashboardScreen(
         }
     }
 
+    DisposableEffect(auth.currentUser?.uid) {
+
+        val uid = auth.currentUser?.uid
+
+        if (uid == null) {
+            alertsLoading = false
+            alertsError = "Please sign in again."
+
+            onDispose { }
+        } else {
+
+            val listener = db.collection("invoices")
+                .whereEqualTo("clientId", uid)
+                .addSnapshotListener { snapshot, exception ->
+
+                    alertsLoading = false
+
+                    if (exception != null) {
+                        alertsError = "Unable to load billing alerts."
+                        return@addSnapshotListener
+                    }
+
+                    alertsError = ""
+
+                    val flaggedInvoices = snapshot?.documents
+                        ?.filter { document ->
+                            document.getString("anomalyStatus") ==
+                                    "FLAGGED_FOR_REVIEW"
+                        }
+                        ?: emptyList()
+
+                    flaggedInvoiceCount = flaggedInvoices.size
+
+                    pendingFlaggedCount = flaggedInvoices.count { document ->
+                        document.getString("status") == "PENDING_APPROVAL"
+                    }
+                }
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
     Scaffold(
         bottomBar = {
-            ClientBottomNavigation (
+            ClientBottomNavigation(
                 selectedTab = selectedTab,
                 onTabSelected = { tab ->
+
+                    if (tab == "billing") {
+                        billingInitialFilter = "ALL"
+                    }
+
                     selectedTab = tab
                 }
             )
@@ -411,36 +478,108 @@ fun ClientDashboardScreen(
                     }
 
                     //ALERTS SECTION
+                    // DYNAMIC ALERTS SECTION
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = "Alerts",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+
+                            Text(
+                                text = "Alerts",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            if (flaggedInvoiceCount > 0) {
+                                Text(
+                                    text = "View All",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable {
+                                        selectedTab = "alerts"
+                                    }
+                                )
+                            }
+                        }
 
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedTab = "alerts"
+                                },
                             shape = RoundedCornerShape(16.dp)
                         ) {
+
                             Row(
                                 modifier = Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
+
                                 Icon(
                                     imageVector = Icons.Default.WarningAmber,
-                                    contentDescription = null
+                                    contentDescription = null,
+                                    tint = if (pendingFlaggedCount > 0) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
 
-                                Text(
-                                    text = "No alerts to display",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                Column(
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+
+                                    when {
+                                        alertsLoading -> {
+                                            Text("Loading billing alerts...")
+                                        }
+
+                                        alertsError.isNotBlank() -> {
+                                            Text(
+                                                text = alertsError,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+
+                                        pendingFlaggedCount > 0 -> {
+                                            Text(
+                                                text = "$pendingFlaggedCount invoice(s) require review",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+
+                                            Text(
+                                                text = "Unusual charges were detected. " +
+                                                        "Please review these invoices before approving."
+                                            )
+                                        }
+
+                                        flaggedInvoiceCount > 0 -> {
+                                            Text(
+                                                text = "$flaggedInvoiceCount previously flagged invoice(s)",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+
+                                            Text(
+                                                text = "There are no flagged invoices " +
+                                                        "awaiting your approval."
+                                            )
+                                        }
+
+                                        else -> {
+                                            Text("No billing alerts to display.")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+
 
                     OutlinedButton(
                         onClick = onLogout,
@@ -454,13 +593,18 @@ fun ClientDashboardScreen(
 
             "billing" -> {
                 ClientInvoicesScreen(
-                    modifier = Modifier.padding(innerPadding)
+                    modifier = Modifier.padding(innerPadding),
+                    initialFilter = billingInitialFilter
                 )
             }
 
             "alerts" -> {
                 ClientAlertsScreen(
-                    modifier = Modifier.padding(innerPadding)
+                    modifier = Modifier.padding(innerPadding),
+                    onViewInvoices = {
+                        billingInitialFilter = "FLAGGED"
+                        selectedTab = "billing"
+                    }
                 )
             }
         }
@@ -586,33 +730,200 @@ fun ClientBillingScreen(
 
 @Composable
 fun ClientAlertsScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onViewInvoices: () -> Unit = {}
 ) {
+    val db = remember { FirebaseFirestore.getInstance() }
+    val userId = FirebaseAuth.getInstance().currentUser?.uid
+
+    var flaggedInvoices by remember {
+        mutableStateOf<List<Triple<String, String, String>>>(
+            emptyList()
+        )
+    }
+
+    var loading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    DisposableEffect(userId) {
+        if (userId == null) {
+            loading = false
+            errorMessage = "Please sign in again."
+            onDispose { }
+        } else {
+            val listener = db.collection("invoices")
+                .whereEqualTo("clientId", userId)
+                .addSnapshotListener { snapshot, exception ->
+
+                    loading = false
+
+                    if (exception != null) {
+                        errorMessage =
+                            "Unable to load billing alerts."
+                        return@addSnapshotListener
+                    }
+
+                    errorMessage = ""
+
+                    flaggedInvoices = snapshot?.documents
+                        ?.filter { document ->
+                            document.getString("anomalyStatus") ==
+                                    "FLAGGED_FOR_REVIEW"
+                        }
+                        ?.map { document ->
+                            Triple(
+                                document.getString("recipientName")
+                                    ?: "Care recipient",
+                                document.getString("serviceDate")
+                                    ?: "Unknown date",
+                                document.getString("status")
+                                    ?: "UNKNOWN"
+                            )
+                        }
+                        ?.sortedByDescending { it.second }
+                        ?: emptyList()
+                }
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.Notifications,
-            contentDescription = null,
-            modifier = Modifier.size(48.dp)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Alerts",
-            style = MaterialTheme.typography.headlineMedium
+            text = "Billing Alerts",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Your billing alerts and notifications will appear here.",
-            style = MaterialTheme.typography.bodyMedium
+            text = "Invoices identified as having unusual charges " +
+                    "will appear here.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        when {
+            loading -> {
+                CircularProgressIndicator()
+            }
+
+            errorMessage.isNotBlank() -> {
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            flaggedInvoices.isEmpty() -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector =
+                                Icons.Default.Notifications,
+                            contentDescription = null
+                        )
+
+                        Text("No flagged invoices to display.")
+                    }
+                }
+            }
+
+            else -> {
+                flaggedInvoices.forEach { invoice ->
+
+                    val recipientName = invoice.first
+                    val serviceDate = invoice.second
+                    val status = invoice.third
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement =
+                                Arrangement.spacedBy(8.dp)
+                        ) {
+
+                            Row(
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp),
+                                verticalAlignment =
+                                    Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        Icons.Default.WarningAmber,
+                                    contentDescription = null,
+                                    tint =
+                                        MaterialTheme.colorScheme.error
+                                )
+
+                                Text(
+                                    text = if (
+                                        status == "PENDING_APPROVAL"
+                                    ) {
+                                        "Invoice requires review"
+                                    } else {
+                                        "Previously flagged invoice"
+                                    },
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            Text(
+                                text = "Recipient: $recipientName"
+                            )
+
+                            Text(
+                                text = "Service date: $serviceDate"
+                            )
+
+                            Text(
+                                text = when (status) {
+                                    "PENDING_APPROVAL" ->
+                                        "Status: Awaiting your approval"
+                                    "APPROVED" ->
+                                        "Status: Approved"
+                                    "PAID" ->
+                                        "Status: Paid"
+                                    "DISPUTED" ->
+                                        "Status: Disputed"
+                                    else ->
+                                        "Status: $status"
+                                }
+                            )
+
+                            Text(
+                                text = "Unusual billing activity was " +
+                                        "detected for this invoice. " +
+                                        "Review the charges carefully."
+                            )
+
+                            TextButton(
+                                onClick = onViewInvoices
+                            ) {
+                                Text("View Invoices")
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
