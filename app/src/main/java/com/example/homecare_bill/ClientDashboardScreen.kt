@@ -70,6 +70,7 @@ fun ClientDashboardScreen(
     var errorMessage by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf("home") }
     var billingInitialFilter by remember { mutableStateOf("ALL") }
+    var targetInvoiceId by remember { mutableStateOf<String?>(null) }
 
     var careRecipients by remember { mutableStateOf<List<CareRecipient>>(emptyList()) }
     //Explanation:
@@ -242,9 +243,9 @@ fun ClientDashboardScreen(
             ClientBottomNavigation(
                 selectedTab = selectedTab,
                 onTabSelected = { tab ->
-
                     if (tab == "billing") {
                         billingInitialFilter = "ALL"
+                        targetInvoiceId = null
                     }
 
                     selectedTab = tab
@@ -594,14 +595,16 @@ fun ClientDashboardScreen(
             "billing" -> {
                 ClientInvoicesScreen(
                     modifier = Modifier.padding(innerPadding),
-                    initialFilter = billingInitialFilter
+                    initialFilter = billingInitialFilter,
+                    targetInvoiceId = targetInvoiceId
                 )
             }
 
             "alerts" -> {
                 ClientAlertsScreen(
                     modifier = Modifier.padding(innerPadding),
-                    onViewInvoices = {
+                    onViewInvoice = { invoiceId ->
+                        targetInvoiceId = invoiceId
                         billingInitialFilter = "FLAGGED"
                         selectedTab = "billing"
                     }
@@ -728,18 +731,24 @@ fun ClientBillingScreen(
     }
 }
 
+private data class FlaggedInvoiceAlert(
+    val id: String,
+    val recipientName: String,
+    val serviceDate: String,
+    val status: String,
+    val totalCents: Long
+)
+
 @Composable
 fun ClientAlertsScreen(
     modifier: Modifier = Modifier,
-    onViewInvoices: () -> Unit = {}
-) {
+    onViewInvoice: (String) -> Unit = {}
+){
     val db = remember { FirebaseFirestore.getInstance() }
     val userId = FirebaseAuth.getInstance().currentUser?.uid
 
     var flaggedInvoices by remember {
-        mutableStateOf<List<Triple<String, String, String>>>(
-            emptyList()
-        )
+        mutableStateOf<List<FlaggedInvoiceAlert>>(emptyList())
     }
 
     var loading by remember { mutableStateOf(true) }
@@ -771,16 +780,19 @@ fun ClientAlertsScreen(
                                     "FLAGGED_FOR_REVIEW"
                         }
                         ?.map { document ->
-                            Triple(
-                                document.getString("recipientName")
+                            FlaggedInvoiceAlert(
+                                id = document.id,
+                                recipientName = document.getString("recipientName")
                                     ?: "Care recipient",
-                                document.getString("serviceDate")
+                                serviceDate = document.getString("serviceDate")
                                     ?: "Unknown date",
-                                document.getString("status")
-                                    ?: "UNKNOWN"
+                                status = document.getString("status")
+                                    ?: "UNKNOWN",
+                                totalCents = document.getLong("totalCents")
+                                    ?: 0L
                             )
                         }
-                        ?.sortedByDescending { it.second }
+                        ?.sortedByDescending { it.serviceDate }
                         ?: emptyList()
                 }
 
@@ -846,9 +858,9 @@ fun ClientAlertsScreen(
             else -> {
                 flaggedInvoices.forEach { invoice ->
 
-                    val recipientName = invoice.first
-                    val serviceDate = invoice.second
-                    val status = invoice.third
+                    val recipientName = invoice.recipientName
+                    val serviceDate = invoice.serviceDate
+                    val status = invoice.status
 
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -895,6 +907,18 @@ fun ClientAlertsScreen(
                             )
 
                             Text(
+                                text = "Amount: KES ${
+                                    String.format(
+                                        java.util.Locale.US,
+                                        "%,.2f",
+                                        invoice.totalCents / 100.0
+                                    )
+                                }",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            Text(
                                 text = when (status) {
                                     "PENDING_APPROVAL" ->
                                         "Status: Awaiting your approval"
@@ -916,9 +940,11 @@ fun ClientAlertsScreen(
                             )
 
                             TextButton(
-                                onClick = onViewInvoices
+                                onClick = {
+                                    onViewInvoice(invoice.id)
+                                }
                             ) {
-                                Text("View Invoices")
+                                Text("View Invoice")
                             }
                         }
                     }

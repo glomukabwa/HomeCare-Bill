@@ -1,10 +1,12 @@
 
 package com.example.homecare_bill
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -13,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 private data class ClientInvoice(
@@ -72,7 +75,8 @@ private fun formatInvoiceMoney(cents: Long): String =
 @Composable
 fun ClientInvoicesScreen(
     modifier: Modifier = Modifier,
-    initialFilter: String = "ALL"
+    initialFilter: String = "ALL",
+    targetInvoiceId: String? = null
 ) {
 
     val db = remember { FirebaseFirestore.getInstance() }
@@ -84,6 +88,12 @@ fun ClientInvoicesScreen(
     var loading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
     var selectedFilter by remember(initialFilter) { mutableStateOf(initialFilter) }
+    val invoiceListState = rememberLazyListState()
+
+    var highlightedInvoiceId by remember {
+        mutableStateOf<String?>(null)
+    }
+
     val filterScrollState = rememberScrollState()
 
     LaunchedEffect(initialFilter, filterScrollState.maxValue) {
@@ -233,6 +243,33 @@ fun ClientInvoicesScreen(
         }
     }
 
+    LaunchedEffect(
+        targetInvoiceId,
+        selectedFilter,
+        loading,
+        filteredInvoices
+    ) {
+        if (
+            targetInvoiceId != null &&
+            selectedFilter == "FLAGGED" &&
+            !loading
+        ) {
+            val index = filteredInvoices.indexOfFirst {
+                it.id == targetInvoiceId
+            }
+
+            if (index >= 0) {
+                invoiceListState.animateScrollToItem(index)
+
+                highlightedInvoiceId = targetInvoiceId
+
+                delay(3000)
+
+                highlightedInvoiceId = null
+            }
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -294,11 +331,26 @@ fun ClientInvoicesScreen(
                 }
 
                 else -> LazyColumn(
+                    state = invoiceListState,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filteredInvoices, key = { it.id }) { invoice ->
 
-                        Card(modifier = Modifier.fillMaxWidth()) {
+                        val cardColor by animateColorAsState(
+                            targetValue = if (highlightedInvoiceId == invoice.id) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            label = "Invoice highlight"
+                        )
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = cardColor
+                            )
+                        ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement =
