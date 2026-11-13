@@ -15,7 +15,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 @Composable
 fun AssignedCareRecipientsScreen(
     onBack: () -> Unit,
-    onCreateInvoice: (String) -> Unit
+    onCreateInvoice: (String) -> Unit,
+    embedded: Boolean = false
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -78,22 +79,29 @@ fun AssignedCareRecipientsScreen(
     }
 
     Scaffold(
+        contentWindowInsets = if (embedded) {
+            WindowInsets(0, 0, 0, 0)
+        } else {
+            ScaffoldDefaults.contentWindowInsets
+        },
         topBar = {
-            TopAppBar(
-                title = { Text("Assigned Care Recipients") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
+            if (!embedded) {
+                TopAppBar(
+                    title = { Text("Assigned Care Recipients") },
+                    navigationIcon = {
+                        TextButton(onClick = onBack) {
+                            Text("Back")
+                        }
                     }
-                }
-            )
+                )
+            }
         }
-    ) { paddingValues ->
+    ) { padding ->
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(padding)
                 .padding(16.dp)
         ) {
 

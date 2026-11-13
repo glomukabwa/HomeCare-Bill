@@ -4,13 +4,28 @@ package com.example.homecare_bill
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import java.util.Locale
+
+private data class RecentCaregiverInvoice(
+    val id: String,
+    val recipientName: String,
+    val serviceDate: String,
+    val totalCents: Long,
+    val status: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,7 +34,8 @@ fun CaregiverDashboardScreen(
     onViewInvitations: () -> Unit,
     onViewAssignments: () -> Unit,
     onViewServices: () -> Unit,
-    onViewInvoices: () -> Unit
+    onViewInvoices: () -> Unit,
+    onCreateInvoice: (String) -> Unit
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     val db = remember { FirebaseFirestore.getInstance() }
@@ -28,9 +44,27 @@ fun CaregiverDashboardScreen(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf("") }
 
+    var selectedTab by rememberSaveable { mutableStateOf("home") }
+
+    var focusedInvoiceId by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
     var pendingInvitationCount by remember { mutableIntStateOf(0) }
 
     var assignedRecipientCount by remember { mutableIntStateOf(0) }
+
+    var recentInvoices by remember {
+        mutableStateOf<List<RecentCaregiverInvoice>>(emptyList())
+    }
+
+    var invoicesLoading by remember {
+        mutableStateOf(true)
+    }
+
+    var invoicesError by remember {
+        mutableStateOf("")
+    }
 
     LaunchedEffect(Unit) {
         val uid = auth.currentUser?.uid
@@ -159,151 +193,374 @@ fun CaregiverDashboardScreen(
     }
 
 
+    DisposableEffect(caregiverUid) {
+
+        if (caregiverUid.isNullOrBlank()) {
+            invoicesLoading = false
+            invoicesError = "Please sign in again."
+
+            onDispose { }
+        } else {
+
+            val listener = db.collection("invoices")
+                .whereEqualTo("caregiverId", caregiverUid)
+                .addSnapshotListener { snapshot, exception ->
+
+                    invoicesLoading = false
+
+                    if (exception != null) {
+                        invoicesError = "Unable to load recent invoices."
+                        return@addSnapshotListener
+                    }
+
+                    recentInvoices = snapshot?.documents
+                        ?.map { doc ->
+                            RecentCaregiverInvoice(
+                                id = doc.id,
+                                recipientName = doc.getString("recipientName")
+                                    ?: "Care recipient",
+                                serviceDate = doc.getString("serviceDate") ?: "",
+                                totalCents = doc.getLong("totalCents") ?: 0L,
+                                status = doc.getString("status") ?: "UNKNOWN"
+                            )
+                        }
+                        ?.sortedByDescending { it.serviceDate }
+                        ?.take(3)
+                        ?: emptyList()
+
+                    invoicesError = ""
+                }
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("HomeCare Bill") },
+                title = {
+                    Text(
+                        when (selectedTab) {
+                            "assignments" -> "Assignments"
+                            "services" -> "Service Catalogue"
+                            "invoices" -> "My Invoices"
+                            else -> "HomeCare Bill"
+                        }
+                    )
+                },
                 actions = {
-                    TextButton(onClick = onLogout) {
-                        Text("Logout")
+                    if (selectedTab == "home") {
+                        TextButton(onClick = onLogout) {
+                            Text("Logout")
+                        }
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            CaregiverBottomNavigation(
+                selectedTab = selectedTab,
+                onTabSelected = { tab ->
+
+                    when (tab) {
+                        "home" -> {
+                            selectedTab = "home"
+                        }
+
+                        "assignments" -> {
+                            selectedTab = "assignments"
+                        }
+
+                        "services" -> {
+                            selectedTab = "services"
+                        }
+
+                        "invoices" -> {
+                            selectedTab = "invoices"
+                        }
                     }
                 }
             )
         }
     ) { innerPadding ->
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
-        ) {
+        when (selectedTab) {
 
-            when {
-                isLoading -> {
-                    CircularProgressIndicator()
-                }
+            "assignments" -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
 
-                errorMessage.isNotEmpty() -> {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+                    // Pending Invitations section
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = 8.dp
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Pending Invitations",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
 
-                else -> {
-                    Text(
-                        text = "Welcome, $firstName!",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                        Text(
+                            text = when (pendingInvitationCount) {
+                                0 -> "No pending invitations."
+                                1 -> "You have 1 pending invitation."
+                                else -> "You have $pendingInvitationCount pending invitations."
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
 
-                    Text(
-                        text = "Manage your care assignments and billing.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                        Button(
+                            onClick = onViewInvitations,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("View Invitations")
+                        }
+                    }
 
                     HorizontalDivider()
 
+                    // Assigned Care Recipients section
                     Text(
-                        text = "Pending Invitations",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
+                        text = "Assigned Care Recipients",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 12.dp,
+                            bottom = 4.dp
+                        )
                     )
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth()
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
+                        AssignedCareRecipientsScreen(
+                            onBack = {
+                                selectedTab = "home"
+                            },
+                            onCreateInvoice = onCreateInvoice,
+                            embedded = true
+                        )
+                    }
+                }
+            }
 
-                            when {
-                                pendingInvitationCount == 0 -> {
-                                    Text("No pending invitations yet.")
+            "services" -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    ServiceCatalogueScreen(
+                        onBack = {
+                            selectedTab = "home"
+                        },
+                        embedded = true
+                    )
+                }
+            }
+
+            "invoices" -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    CaregiverInvoicesScreen(
+                        embedded = true,
+                        focusedInvoiceId = focusedInvoiceId,
+                        onFocusHandled = {
+                            focusedInvoiceId = null
+                        }
+                    )
+                }
+            }
+
+            else -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+
+                    when {
+                        isLoading -> {
+                            CircularProgressIndicator()
+                        }
+
+                        errorMessage.isNotEmpty() -> {
+                            Text(
+                                text = errorMessage,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        else -> {
+                            Text(
+                                text = "Welcome, $firstName!",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Text(
+                                text = "Here's an overview of your caregiving activity.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+
+                            HorizontalDivider()
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+
+                                Card(
+                                    onClick = onViewInvitations,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Pending Invitations",
+                                            style = MaterialTheme.typography.titleSmall
+                                        )
+
+                                        Text(
+                                            text = pendingInvitationCount.toString(),
+                                            style = MaterialTheme.typography.headlineLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
 
-                                pendingInvitationCount == 1 -> {
-                                    Text("You have 1 pending invitation.")
+                                Card(
+                                    onClick = {
+                                        selectedTab = "assignments"
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = "Assigned Recipients",
+                                            style = MaterialTheme.typography.titleSmall
+                                        )
+
+                                        Text(
+                                            text = assignedRecipientCount.toString(),
+                                            style = MaterialTheme.typography.headlineLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
+                            Text(
+                                text = "Recent Invoices",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            when {
+                                invoicesLoading -> {
+                                    CircularProgressIndicator()
+                                }
+
+                                invoicesError.isNotBlank() -> {
+                                    Text(
+                                        text = invoicesError,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+
+                                recentInvoices.isEmpty() -> {
+                                    Text(
+                                        text = "You haven't submitted any invoices yet.",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                 }
 
                                 else -> {
-                                    Text(
-                                        "You have $pendingInvitationCount pending invitations."
-                                    )
+                                    recentInvoices.forEach { invoice ->
+
+                                        Card(
+                                            onClick = {
+                                                focusedInvoiceId = invoice.id
+                                                selectedTab = "invoices"
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+
+                                                Text(
+                                                    text = invoice.recipientName,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+
+                                                Text(
+                                                    text = "Service date: ${invoice.serviceDate}",
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+
+                                                Text(
+                                                    text = "Status: ${
+                                                        invoice.status.replace("_", " ")
+                                                    }",
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+
+                                                Text(
+                                                    text = "KES ${
+                                                        String.format(
+                                                            Locale.US,
+                                                            "%,.2f",
+                                                            invoice.totalCents / 100.0
+                                                        )
+                                                    }",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
-                            Button(
-                                onClick = onViewInvitations,
+                            TextButton(
+                                onClick = {
+                                    selectedTab = "invoices"
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("View Invitations")
-                            }
-                        }
-                    }
-
-                    Text(
-                        text = "Assigned Care Recipients",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-
-                            when (assignedRecipientCount) {
-                                0 -> Text("No assigned care recipients yet.")
-                                1 -> Text("You have 1 assigned care recipient.")
-                                else -> Text(
-                                    "You have $assignedRecipientCount assigned care recipients."
-                                )
-                            }
-
-                            Button(
-                                onClick = onViewAssignments,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("View Assigned Recipients")
-                            }
-                        }
-                    }
-
-                    Button(
-                        onClick = onViewServices,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("View Service Catalogue")
-                    }
-
-                    Text(
-                        text = "Invoices",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Text("View invoices you've submitted and track their approval status.")
-
-                            Button(
-                                onClick = onViewInvoices,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("View My Invoices")
+                                Text("View All Invoices")
                             }
                         }
                     }
@@ -312,3 +569,60 @@ fun CaregiverDashboardScreen(
         }
     }
 }
+
+        @Composable
+        fun CaregiverBottomNavigation(
+            selectedTab: String,
+            onTabSelected: (String) -> Unit
+        ) {
+            NavigationBar {
+
+                NavigationBarItem(
+                    selected = selectedTab == "home",
+                    onClick = { onTabSelected("home") },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Home"
+                        )
+                    },
+                    label = { Text("Home") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == "assignments",
+                    onClick = { onTabSelected("assignments") },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.People,
+                            contentDescription = "Assignments"
+                        )
+                    },
+                    label = { Text("Assignments") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == "services",
+                    onClick = { onTabSelected("services") },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.List,
+                            contentDescription = "Services"
+                        )
+                    },
+                    label = { Text("Services") }
+                )
+
+                NavigationBarItem(
+                    selected = selectedTab == "invoices",
+                    onClick = { onTabSelected("invoices") },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Receipt,
+                            contentDescription = "Invoices"
+                        )
+                    },
+                    label = { Text("Invoices") }
+                )
+            }
+        }

@@ -14,7 +14,8 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServiceCatalogueScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    embedded: Boolean = false
 ) {
     val db = remember { FirebaseFirestore.getInstance() }
 
@@ -58,22 +59,29 @@ fun ServiceCatalogueScreen(
     }
 
     Scaffold(
+        contentWindowInsets = if (embedded) {
+            WindowInsets(0, 0, 0, 0)
+        } else {
+            ScaffoldDefaults.contentWindowInsets
+        },
         topBar = {
-            TopAppBar(
-                title = { Text("Service Catalogue") },
-                navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text("Back")
+            if (!embedded) {
+                TopAppBar(
+                    title = { Text("Service Catalogue") },
+                    navigationIcon = {
+                        TextButton(onClick = onBack) {
+                            Text("Back")
+                        }
                     }
-                }
-            )
+                )
+            }
         }
-    ) { paddingValues ->
+    ) { padding ->
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(padding)
                 .padding(16.dp)
         ) {
 

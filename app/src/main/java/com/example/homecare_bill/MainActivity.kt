@@ -272,6 +272,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onViewInvoices = {
                                     navController.navigate("caregiver_invoices")
+                                },
+                                onCreateInvoice = { assignmentId ->
+                                    navController.navigate("create_invoice/$assignmentId")
                                 }
                             )
                         }
