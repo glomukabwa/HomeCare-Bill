@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Receipt
@@ -117,6 +116,14 @@ fun ClientDashboardScreen(
 
     var billingError by remember {
         mutableStateOf("")
+    }
+
+    var outstandingBalanceCents by remember {
+        mutableStateOf(0L)
+    }
+
+    var outstandingInvoiceCount by remember {
+        mutableStateOf(0)
     }
 
     LaunchedEffect(Unit) {
@@ -272,6 +279,19 @@ fun ClientDashboardScreen(
                         ?.sortedByDescending { it.serviceDate }
                         ?.take(3)
                         ?: emptyList()
+
+                    val unpaidApprovedInvoices = snapshot?.documents
+                        ?.filter { document ->
+                            document.getString("status") == "APPROVED" &&
+                                    document.getString("paymentState") != "PAID"
+                        }
+                        ?: emptyList()
+
+                    outstandingInvoiceCount = unpaidApprovedInvoices.size
+
+                    outstandingBalanceCents = unpaidApprovedInvoices.sumOf { document ->
+                        document.getLong("totalCents") ?: 0L
+                    }
                 }
 
             onDispose {
@@ -367,19 +387,39 @@ fun ClientDashboardScreen(
                     ) {
                         ClientSummaryCard(
                             title = "Outstanding Balance",
-                            value = "KSh —",
-                            description = "Awaiting billing data",
-                            modifier = Modifier.weight(1f)
-                            //This tells Compose to distribute the available horizontal space equally between the two summary cards.
-                            //Because both cards have a weight of 1f, each receives an equal share of the available space after accounting for the gap.
+                            value = when {
+                                billingLoading -> "Loading..."
+                                billingError.isNotBlank() -> "Unavailable"
+                                else -> "KES ${
+                                    String.format(
+                                        java.util.Locale.US,
+                                        "%,.2f",
+                                        outstandingBalanceCents / 100.0
+                                    )
+                                }"
+                            },
+                            description = when {
+                                billingLoading -> "Retrieving balance"
+                                billingError.isNotBlank() -> "Unable to load balance"
+                                outstandingInvoiceCount == 0 -> "No outstanding invoices"
+                                outstandingInvoiceCount == 1 -> "1 invoice awaiting payment"
+                                else -> "$outstandingInvoiceCount invoices awaiting payment"
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    billingInitialFilter = "APPROVED"
+                                    targetInvoiceId = null
+                                    selectedTab = "billing"
+                                }
                         )
 
-                        ClientSummaryCard(
-                            title = "Upcoming Visits",
-                            value = "—",
-                            description = "No visits loaded",
-                            modifier = Modifier.weight(1f)
-                        )
+//                        ClientSummaryCard(
+//                            title = "Upcoming Visits",
+//                            value = "—",
+//                            description = "No visits loaded",
+//                            modifier = Modifier.weight(1f)
+//                        )
                     }
 
 
@@ -457,36 +497,36 @@ fun ClientDashboardScreen(
                     }
 
                     //TODAY'S CARE SECTION
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Today's Care",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarMonth,
-                                    contentDescription = null
-                                )
-
-                                Text(
-                                    text = "No care visits scheduled yet.",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
-                    }
+//                    Column(
+//                        verticalArrangement = Arrangement.spacedBy(10.dp)
+//                    ) {
+//                        Text(
+//                            text = "Today's Care",
+//                            style = MaterialTheme.typography.titleLarge,
+//                            fontWeight = FontWeight.SemiBold
+//                        )
+//
+//                        Card(
+//                            modifier = Modifier.fillMaxWidth(),
+//                            shape = RoundedCornerShape(16.dp)
+//                        ) {
+//                            Row(
+//                                modifier = Modifier.padding(16.dp),
+//                                verticalAlignment = Alignment.CenterVertically,
+//                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+//                            ) {
+//                                Icon(
+//                                    imageVector = Icons.Default.CalendarMonth,
+//                                    contentDescription = null
+//                                )
+//
+//                                Text(
+//                                    text = "No care visits scheduled yet.",
+//                                    style = MaterialTheme.typography.bodyMedium
+//                                )
+//                            }
+//                        }
+//                    }
 
 
                     // DYNAMIC RECENT BILLING SECTION
@@ -944,12 +984,6 @@ fun ClientAlertsScreen(
             fontWeight = FontWeight.Bold
         )
 
-        Text(
-            text = "Invoices identified as having unusual charges " +
-                    "will appear here.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
         when {
             loading -> {
                 CircularProgressIndicator()
@@ -964,26 +998,48 @@ fun ClientAlertsScreen(
 
             flaggedInvoices.isEmpty() -> {
                 Card(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
-                        horizontalArrangement =
-                            Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector =
-                                Icons.Default.Notifications,
-                            contentDescription = null
+                            imageVector = Icons.Default.Notifications,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
 
-                        Text("No flagged invoices to display.")
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "No billing alerts at the moment",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            Text(
+                                text = "Invoices with potentially unusual billing " +
+                                        "patterns will appear here for your review.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
 
             else -> {
+                Text(
+                    text = "The following invoices have been flagged for review " +
+                            "due to potentially unusual billing patterns. ",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
                 flaggedInvoices.forEach { invoice ->
 
                     val recipientName = invoice.recipientName
