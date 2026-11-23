@@ -95,60 +95,6 @@ The extracted features are transformed using a saved scaler and passed to the tr
 
 An anomaly flag indicates an unusual billing pattern and does not necessarily establish that an invoice is incorrect or fraudulent.
 
-## Project Setup
-
-### Prerequisites
-
-- Android Studio
-- Android SDK
-- Python
-- Firebase project
-- Safaricom Daraja API credentials for payment integration
-
-### Android Application
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/glomukabwa/HomeCare-Bill.git
-   ```
-
-2. Open the project in Android Studio.
-
-3. Configure Firebase for the Android application using the appropriate `google-services.json` file.
-
-4. Allow Gradle to synchronize project dependencies.
-
-5. Configure the application's backend API address for the development environment.
-
-6. Build and run the application on an Android emulator or compatible Android device.
-
-### Backend
-
-1. Navigate to the backend directory.
-
-2. Create and activate a Python virtual environment:
-
-   ```bash
-   python -m venv .venv
-   ```
-
-   On Windows:
-
-   ```bash
-   .venv\Scripts\activate
-   ```
-
-3. Install the backend dependencies using the project's dependency file, where available.
-
-4. Configure the required Firebase service credentials, environment variables, and Safaricom Daraja settings.
-
-5. Ensure the trained invoice model, scaler, and metadata files are available in the backend's `ML` directory.
-
-6. Start the FastAPI application using Uvicorn with the appropriate application module.
-
-The backend configuration must be completed before testing invoice processing and payment functionality.
-
 ## Security
 
 HomeCare Bill implements several security measures, including:
